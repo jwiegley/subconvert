@@ -1,0 +1,3 @@
+[submodule "svndumptool"]
+	path = svndumptool
+	url = git://github.com/jwiegley/svndumptool.git
