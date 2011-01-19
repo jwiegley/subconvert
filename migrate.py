@@ -2,7 +2,7 @@
 # coding: utf-8
 
 import sys
-sys.path.append("/Users/johnw/src/boost/src/svndumptool")
+sys.path.append("/Users/johnw/src/boost-migrate/src/svndumptool")
 
 import svndump
 
