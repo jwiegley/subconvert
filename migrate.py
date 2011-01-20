@@ -9,7 +9,6 @@ import csv
 
 from subprocess import Popen, PIPE
 
-sys.path.append("/Users/johnw/src/boost-migrate/svndumptool")
 import svndump
 
 verbose = True
