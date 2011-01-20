@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import os
+import re
 import sys
 import string
 import cStringIO
@@ -145,10 +146,9 @@ class GitTree:
 
         segments = path.split('/')
         assert segments[0] in self.entries
-        if len(segments) == 1:
-            del self.entries[segments[0]]
-        else:
+        if len(segments) > 1:
             self.entries[segments[0]].remove(string.join(segments[1:], '/'))
+        del self.entries[segments[0]]
 
     def write(self):
         if self.sha1: return
@@ -159,7 +159,10 @@ class GitTree:
             table.write(entry.ls())
             table.write('\0')
 
-        self.sha1 = git('mktree', '-z', input = table.getvalue())
+        table = table.getvalue()
+        # It's possible table might be empty, which represents a tree that has
+        # no files at all
+        self.sha1 = git('mktree', '-z', input = table)
         del table
 
 class GitCommit:
