@@ -1,0 +1,44 @@
+Faithfully convert Subversion repositories to Git.
+
+SubConvert.py, version 1.0
+
+Copyright (c) 2011, BoostPro Computing.  All rights reserved.
+
+This script replays Subversion dump files as Git actions, yielding a Git
+repository which has as close of a 1:1 correspondence with the original
+Subversion repository as possible.
+
+Some respects in which this are not possible are:
+
+* Subversion allows for multiple transactions within a single revision, and it
+  is possible that some of those transactions may affect more than one branch.
+  This must be mapped as two separate Git commits if/when it occurs.
+
+* Subversion supports revisions which modify only directories and/or
+  properties of files and directories.  Since Git tracks only files, and has
+  no notion of Subversion's properties, these revisions are ignored.
+
+* Subversion models all content in a flat filesystem, such that semantically,
+  there is no distinction between branches and tags, except that typically a
+  "tag" is a directory which is never modified after initial creation.
+
+  Because proper identification of branches and tags cannot faithfully be done
+  hueristically, this script makes a best guess based on activity within all
+  revisions, and then outputs a data file for the user to correct before
+  performing the final conversion.
+
+* Subversion also tracks version history for multiple projects within this
+  same, single filesystem.  This script, if provided with a submodules
+  "manifest" file, can create multiple repositories in parallel: one to model
+  the original Subversion repository as exactly as possible, with all projects
+  conflated in a single filesystem; and a separate repository for each
+  submodule.
+
+Note that for efficiency's sake -- to avoid thrashing disk unnecessarily and
+taking orders of magnitude more time -- this script performs Git actions
+directly, completely bypassing use of a working tree.  That is, instead of
+using porcelain commands such as git add, remove, commit, etc., and git
+checkout to switch between branches, it uses the underlying plumbing commands:
+hash-object, mktree, commit-tree, update-ref, symbolic-ref, etc.  The final
+checkout to yield the working tree(s) is done only after all repositories and
+their branches and tags have been finalized.
