@@ -749,9 +749,14 @@ class SubConvert(CommandLineApp):
                             "Converting r%6d... (%4d pending git objects)\r" % \
                             (rev, worker.qsize()),
                     else:
-                        print >>sys.stderr, "Converting r%s...\r" % rev,
+                        print >>sys.stderr, "Converting r%d...\r" % rev,
                 else:
-                    print >>sys.stderr, "Converting r%s..." % rev
+                    if not self.options.debug:
+                        print >>sys.stderr, \
+                            "Converting r%d... (%d pending git objects)" % \
+                            (rev, worker.qsize())
+                    else:
+                        print >>sys.stderr, "Converting r%d..." % rev
 
                 mapping[last_rev] = commit
 
