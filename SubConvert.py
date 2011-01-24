@@ -795,8 +795,6 @@ def revision_iterator(path):
 ##############################################################################
 
 class StatusDisplay:
-    last_rev = 0
-
     def __init__(self, verb, dry_run, debug, verbose):
         self.verb    = verb
         self.dry_run = dry_run
@@ -804,16 +802,13 @@ class StatusDisplay:
         self.verbose = verbose
 
     def update(self, worker, rev=None):
-        if rev:
-            self.last_rev = rev
-        else:
-            rev = self.last_rev
-
         if worker and not self.dry_run:
             sys.stderr.write("%s %8s... (%9d pending git objects)" %
-                             (self.verb, 'r%d' % rev, worker.qsize()))
+                             (self.verb, 'r%d' % rev if rev else 'finished',
+                              worker.qsize()))
         else:
-            sys.stderr.write("%s r%d..." % (self.verb, rev))
+            sys.stderr.write("%s %s..." % (self.verb,
+                                           'r%d' % rev if rev else 'finished'))
 
         sys.stderr.write('\r' if not self.debug and not self.verbose else '\n')
 
