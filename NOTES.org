@@ -1,0 +1,15 @@
+* [2011-01-23 Sun] Initial flat conversion completed, unoptimized
+
+  |                     |          |     <r8> |                             |
+  | RAM used during run | resident |   8.3 GB |                             |
+  |---------------------+----------+----------+-----------------------------|
+  | Total time to run   | user     |    1.10h |                             |
+  |                     | sys      |   10.88h |                             |
+  |                     | cpu      |      84% |                             |
+  |                     | total    |   14.10h |                             |
+  |---------------------+----------+----------+-----------------------------|
+  | Git objects created | unpacked |   923120 |                             |
+  |                     | packed   |          | git-svn: 593026 objs packed |
+  |---------------------+----------+----------+-----------------------------|
+  | Resulting repo size | unpacked |   4.3 GB |                             |
+  |                     | packed   |       GB |                             |
