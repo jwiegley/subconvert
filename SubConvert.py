@@ -640,20 +640,20 @@ class GitCommit(object):
         log.debug('commit.remove: ' + path)
         self.sha1   = None
         self.posted = None
-        assert self.tree
-        self.tree.remove(path)
+        if self.tree:
+            self.tree.remove(path)
 
     def post(self, q):
         if self.posted: return
         map(lambda x: x.post(q), self.parents)
-        assert self.tree
-        if self.prefix:
-            tree = self.tree.lookup(self.prefix)
-        else:
-            tree = self.tree
-        if tree:
-            assert isinstance(tree, GitTree)
-            tree.post(q)
+        if self.tree:
+            if self.prefix:
+                tree = self.tree.lookup(self.prefix)
+            else:
+                tree = self.tree
+            if tree:
+                assert isinstance(tree, GitTree)
+                tree.post(q)
         q.enqueue(self)
         self.posted = True
 
@@ -666,7 +666,7 @@ class GitCommit(object):
             tree = self.tree
 
         if not tree:
-            tree = GitTree()    # create an empty tree
+            tree = GitTree(self.prefix) # create an empty tree
             tree.write()
 
         if not tree.sha1:
