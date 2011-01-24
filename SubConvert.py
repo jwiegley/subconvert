@@ -329,19 +329,12 @@ class CommandLineApp(object):
 ##############################################################################
 
 class GitError(Exception):
-    def __init__(self, cmd, stderr=None, *args, **kwargs):
-        self.cmd    = cmd
-        self.args   = args
-        self.kwargs = kwargs
-        self.stderr = stderr
+    def __init__(self, msg):
+        self.msg = msg
         Exception.__init__(self)
 
     def __str__(self):
-        if self.stderr:
-            return "Git command failed: git %s %s: %s" % \
-                (self.cmd, self.args, self.stderr)
-        else:
-            return "Git command failed: git %s %s" % (self.cmd, self.args)
+        return "Exception: %s" % self.msg
 
 def git(cmd, *args, **kwargs):
     restart = True
@@ -433,14 +426,16 @@ class GitLinearQueue(object):
     def qsize(self):
         return len(self.pending)
 
-    def enqueue(self, obj):
-        self.pending.append(obj)
+    def enqueue(self, item):
+        log.debug('Queuing %s' % item)
+        self.pending.append(item)
 
     def finish(self, status=None):
         while self.qsize() > 0:
             item = self.pending[0]
             self.pending.pop(0)
 
+            log.debug('Writing %s' % item)
             item.write()
 
             if status and \
@@ -463,7 +458,7 @@ class GitBlob(object):
         self.executable = executable
 
     def __repr__(self):
-        return "%s = %s" % (object.__repr__(self), self.name)
+        return "%s[%s]" % (object.__repr__(self), self.name)
 
     def ls(self):
         assert self.sha1
@@ -494,7 +489,7 @@ class GitTree(object):
         self.entries = {}
 
     def __repr__(self):
-        return "%s = %s" % (object.__repr__(self), self.name)
+        return "%s[%s]" % (object.__repr__(self), self.name)
 
     def ls(self):
         assert self.sha1
@@ -506,11 +501,14 @@ class GitTree(object):
             return None
 
         if len(segments) == 1:
-            return self.entries[segments[0]]
+            result = self.entries[segments[0]]
+            assert result.name == segments[0]
         else:
             tree = self.entries[segments[0]]
             assert isinstance(tree, GitTree)
-            return tree.lookup(string.join(segments[1:], '/'))
+            result = tree.lookup(string.join(segments[1:], '/'))
+
+        return result
 
     def update(self, path, obj):
         self.sha1   = None
@@ -670,8 +668,10 @@ class GitCommit(object):
         if not tree.sha1:
             raise GitError('Commit tree has no SHA1: %s' % self.dump_str())
 
-        log.debug('committing tree %s (prefix %s)' % (tree.name, self.prefix))
-        log.debug('commit is: %s' % self.dump_str())
+        if self.prefix:
+            log.debug('committing tree %s (prefix %s)' % (tree.name, self.prefix))
+        else:
+            log.debug('committing tree %s' % tree.name)
 
         args = ['commit-tree', tree.sha1]
         for parent in self.parents:
@@ -945,13 +945,14 @@ class SubConvert(CommandLineApp):
             # completely OK.
             commit = current_branch.commit = \
                 copy_from.fork() if copy_from else GitCommit()
-            # This copy is done to avoid each commit having to link back to
-            # its parent branch
-            commit.prefix = current_branch.prefix
             self.log.info('Found new branch %s' % current_branch.name)
         else:
             commit = current_branch.commit.fork()
             current_branch.commit = commit
+
+        # This copy is done to avoid each commit having to link back to its
+        # parent branch
+        commit.prefix = current_branch.prefix
 
         # Setup the author and commit comment
         author = dump.get_rev_author()
@@ -1078,8 +1079,16 @@ class SubConvert(CommandLineApp):
 
                 tree = past_commit.lookup(node.get_copy_from_path())
                 if tree:
+                    tree = copy.copy(tree)
+                    tree.name = os.path.basename(path)
+
+                    # If this tree hasn't been written yet (the SHA1 would be
+                    # the exact same), make sure our copy gets written on its
+                    # own terms to avoid a dependency ordering snafu
+                    if not tree.sha1:
+                        tree.posted = False
+
                     self.commit.update(path, tree)
-                    log.debug("dir add, commit is now: %s" % self.commit.dump_str())
                     activity = True
                 else:
                     activity = False
@@ -1125,7 +1134,7 @@ class SubConvert(CommandLineApp):
 
         elif 'git-test' in args:
             commit = GitCommit()
-            commit.update('foo/bar/baz.c', GitBlob('baz.c', '#include <stdio.h>\n'))
+            commit.update('foo/bar/baz.c', GitBlob('#include <stdio.h>\n'))
             commit.author_name  = 'John Wiegley'
             commit.author_email = 'johnw@boostpro.com'
             commit.author_date  = '2005-04-07T22:13:13'
