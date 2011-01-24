@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-"""Faithfully convert Subversion repositories to Git.
+version = "1.0"
 
-   SubConvert.py, version 1.0
+"""SubConvert.py: Faithfully convert Subversion repositories to Git.
 
    Copyright (c) 2011, BoostPro Computing.  All rights reserved.
 
@@ -141,8 +141,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 import Queue
-import copy
+import bz2
+import gzip
+import cPickle
 import cStringIO
+import copy
 import csv
 import hashlib
 import inspect
@@ -159,6 +162,7 @@ import svndump
 
 from subprocess import Popen, PIPE
 
+log     = None
 verbose = False
 debug   = False
 
@@ -169,6 +173,18 @@ LEVELS = {'DEBUG':    logging.DEBUG,
           'WARNING':  logging.WARNING,
           'ERROR':    logging.ERROR,
           'CRITICAL': logging.CRITICAL}
+
+class OptionParserExt(optparse.OptionParser):
+    def print_help(self):
+        optparse.OptionParser.print_help(self)
+
+        print '''
+Commands:
+  authors               Print initial content for the --authors file
+  branches              Print initial content for the --branches file
+  convert               Replay dump file (-f) into Git repository in *current directory*
+  print                 Show a summary of the dump file's contents
+'''
 
 class CommandLineApp(object):
     "Base class for building command line applications."
@@ -186,7 +202,8 @@ class CommandLineApp(object):
     def __init__(self):
         "Initialize CommandLineApp."
         # Create the logger
-        self.log = logging.getLogger(os.path.basename(sys.argv[0]))
+        global log
+        log = self.log = logging.getLogger(os.path.basename(sys.argv[0]))
         ch = logging.StreamHandler()
         formatter = logging.Formatter("%(name)s: %(levelname)s: %(message)s")
         ch.setFormatter(formatter)
@@ -194,8 +211,10 @@ class CommandLineApp(object):
         self.log_handler = ch
 
         # Setup the options parser
-        usage = 'usage: %prog [options] [ARGS...]'
-        op = self.option_parser = optparse.OptionParser(usage = usage)
+        usage = 'usage: %prog [options] [ARGS...] <COMMAND>'
+        op = self.option_parser = \
+            OptionParserExt(usage = usage,
+                            version = "%%prog %s, by John Wiegley" % version)
 
         op.add_option('', '--debug',
                       action='store_true', dest='debug',
@@ -214,8 +233,8 @@ class CommandLineApp(object):
                       default=False, help='append logging data to FILE')
         op.add_option('', '--loglevel', metavar='LEVEL',
                       type='string', action='store', dest='loglevel',
-                      default=False, help='set log level: DEBUG, INFO, WARNING, ERROR, CRITICAL')
-        return
+                      default=False,
+                      help='set log level: DEBUG, INFO, WARNING, ERROR, CRITICAL')
 
     def main(self, *args):
         """Main body of your application.
@@ -263,17 +282,18 @@ class CommandLineApp(object):
             self.log.addHandler(ch)
             self.log_handler = ch
 
+        global debug, verbose
+
         if self.options.loglevel:
             self.log.setLevel(LEVELS[self.options.loglevel])
         elif self.options.debug:
-            global debug
-            debug = True
+            debug   = True
+            verbose = True
             self.log.setLevel(logging.DEBUG)
         elif self.options.verbose:
-            global verbose
             verbose = True
             self.log.setLevel(logging.INFO)
-        
+
         exit_code = 0
         try:
             # We could just call main() and catch a TypeError, but that would
@@ -301,7 +321,7 @@ class CommandLineApp(object):
             exit_code = self.handleMainException()
             if self.options.debug:
                 raise
-            
+
         if self.force_exit:
             sys.exit(exit_code)
         return exit_code
@@ -309,9 +329,9 @@ class CommandLineApp(object):
 ##############################################################################
 
 class GitError(Exception):
-    def __init__(self, cmd, args, kwargs, stderr = None):
-        self.cmd = cmd
-        self.args = args
+    def __init__(self, cmd, stderr=None, *args, **kwargs):
+        self.cmd    = cmd
+        self.args   = args
         self.kwargs = kwargs
         self.stderr = stderr
         Exception.__init__(self)
@@ -330,13 +350,12 @@ def git(cmd, *args, **kwargs):
         if 'input' in kwargs:
             stdin_mode = PIPE
 
-        if verbose:
-            print "=> git %s %s" % (cmd, string.join(args, ' '))
-            if debug and 'input' in kwargs and \
-               ('bulk_input' not in kwargs or not kwargs['bulk_input']):
-                print "<<EOF"
-                print kwargs['input'],
-                print "EOF"
+        log.info("=> git %s %s" % (cmd, string.join(args, ' ')))
+        if debug and 'input' in kwargs and \
+           ('bulk_input' not in kwargs or not kwargs['bulk_input']):
+            log.debug("<<EOF")
+            log.debug(kwargs['input'])
+            log.debug("EOF")
 
         environ = os.environ.copy()
 
@@ -356,8 +375,8 @@ def git(cmd, *args, **kwargs):
             input = kwargs['input']
         else:
             input = ''
-       
-        out, err = proc.communicate(input) 
+
+        out, err = proc.communicate(input)
 
         returncode = proc.returncode
         restart = False
@@ -380,35 +399,56 @@ def git(cmd, *args, **kwargs):
 class GitTerminateQueue(object):
     def write(self): return False
 
-class GitActionQueue(Queue.Queue):
+class GitThreadedQueue(Queue.Queue):
     finishing = False
+    status    = None
 
     def enqueue(self, item):
-        #print 'Queue:', item
         self.put_nowait(item)
 
     def write(self):
         result = True
         while result:
             item = self.get()
-            #print 'Write:', item
             result = item.write()
-            #print 'Wrote:', item
             self.task_done()
-        #print 'End of loop'
 
-    def finish(self):
+            if self.status and \
+               not isinstance(item, GitBlob) and \
+               not isinstance(item, GitTree):
+                self.status.update(self)
+
+    def finish(self, status=None):
+        self.status    = status
         self.finishing = True
-        #print 'Enqueueing termination'
         self.enqueue(GitTerminateQueue())
-        #print 'Joining'
         self.join()
-        #print 'End of join'
 
-class GitDebugQueue(object):
-    def qsize(self): return 0
-    def enqueue(self, obj): obj.write()
-    def finish(self): pass
+class GitLinearQueue(object):
+    pending = None
+
+    def __init__(self):
+        self.pending = []
+
+    def qsize(self):
+        return len(self.pending)
+
+    def enqueue(self, obj):
+        self.pending.append(obj)
+
+    def finish(self, status=None):
+        while self.qsize() > 0:
+            item = self.pending[0]
+            self.pending.pop(0)
+
+            item.write()
+
+            if status and \
+               not isinstance(item, GitBlob) and \
+               not isinstance(item, GitTree):
+                status.update(self)
+
+##############################################################################
 
 class GitBlob(object):
     sha1       = None
@@ -439,6 +479,7 @@ class GitBlob(object):
         if self.sha1: return
         self.sha1 = git('hash-object', '-w', '--stdin', '--no-filters',
                         input = self.data, bulk_input = True)
+        assert self.sha1
         self.data = None        # free up memory
         return True
 
@@ -472,9 +513,8 @@ class GitTree(object):
             return tree.lookup(string.join(segments[1:], '/'))
 
     def update(self, path, obj):
-        self.sha1 = None
+        self.sha1   = None
         self.posted = None
-        if debug: print "tree.update:", path, obj
 
         self.entries = dict(self.entries)
 
@@ -494,9 +534,8 @@ class GitTree(object):
             self.entries[segments[0]] = tree
 
     def remove(self, path):
-        self.sha1 = None
+        self.sha1   = None
         self.posted = None
-        if debug: print "tree.remove:", path
 
         segments = path.split('/')
         if segments[0] not in self.entries:
@@ -529,9 +568,7 @@ class GitTree(object):
         table = cStringIO.StringIO()
         for entry in self.entries.values():
             if not entry.sha1:
-                print >>sys.stderr, \
-                    "Not written before parent %s: %s" % (self, entry)
-                sys.exit(1)
+                raise GitError("Tree not written before parent %s: %s" % (self, entry))
             table.write(entry.ls())
             table.write('\0')
         table = table.getvalue()
@@ -539,6 +576,7 @@ class GitTree(object):
         # It's possible table might be empty, which represents a tree that has
         # no files at all
         self.sha1 = git('mktree', '-z', input = table, bulk_input = True)
+        assert self.sha1
 
         return True
 
@@ -554,6 +592,7 @@ class GitCommit(object):
     committer_date  = None
     comment         = None
     name            = None
+    prefix          = ''
     posted          = False
 
     def __init__(self, parents = [], name = None):
@@ -573,6 +612,7 @@ class GitCommit(object):
     def dump_str(self):
         buf = cStringIO.StringIO()
         buf.write("Commit %s\n" % (self.sha1 or ""))
+        buf.write("  Log: %s\n" % (self.comment or ""))
         self.write_tree(buf, self.tree)
         return buf.getvalue()
 
@@ -587,44 +627,53 @@ class GitCommit(object):
         return "160000 commit %s\t%s" % (self.sha1, self.name)
 
     def lookup(self, path):
-        if not self.tree:
-            return None
+        if not self.tree: return None
         return self.tree.lookup(path)
 
     def update(self, path, obj):
-        self.sha1 = None
+        log.debug('commit.update: ' + path)
+        self.sha1   = None
         self.posted = None
-        if debug: print "commit.update:", path, obj
         if not self.tree:
             self.tree = GitTree(path.split('/')[0])
         self.tree.update(path, obj)
 
     def remove(self, path):
-        self.sha1 = None
+        log.debug('commit.remove: ' + path)
+        self.sha1   = None
         self.posted = None
-        if debug: print "commit.remove:", path
         assert self.tree
-        try:
-            self.tree.remove(path)
-        except Exception, err:
-            print >>sys.stderr, 'Exception in %s' % self.dump_str()
-            raise err
+        self.tree.remove(path)
 
     def post(self, q):
         if self.posted: return
         map(lambda x: x.post(q), self.parents)
         assert self.tree
-        self.tree.post(q)
+        if self.prefix:
+            tree = self.tree.lookup(self.prefix)
+        else:
+            tree = self.tree
+        assert tree
+        assert isinstance(tree, GitTree)
+        tree.post(q)
         q.enqueue(self)
         self.posted = True
 
     def write(self):
         if self.sha1: return
-        if not self.tree.sha1:
-            print >>sys.stderr, "Commit tree has no SHA1: %s" % self
-            sys.exit(1)
 
-        args = ['commit-tree', self.tree.sha1]
+        if self.prefix:
+            tree = self.tree.lookup(self.prefix)
+        else:
+            tree = self.tree
+
+        if not tree.sha1:
+            raise GitError('Commit tree has no SHA1: %s' % self.dump_str())
+
+        log.debug('committing tree %s (prefix %s)' % (tree.name, self.prefix))
+        log.debug('commit is: %s' % self.dump_str())
+
+        args = ['commit-tree', tree.sha1]
         for parent in self.parents:
             args.append('-p')
             assert parent.sha1
@@ -637,6 +686,7 @@ class GitCommit(object):
                          committer_name  = self.committer_name  or self.author_name,
                          committer_email = self.committer_email or self.author_email,
                          committer_date  = self.committer_date  or self.author_date)
+        assert self.sha1
 
         self.author_name     = None
         self.author_email    = None
@@ -649,11 +699,15 @@ class GitCommit(object):
         return True
 
 class GitBranch(object):
-    name   = None
-    commit = None
-    posted = False
+    name      = None
+    prefix    = ''
+    prefix_re = None
+    commit    = None
+    kind      = 'branch'
+    final_rev = 0
+    posted    = False
 
-    def __init__(self, commit, name='master'):
+    def __init__(self, name='master', commit=None):
         self.name   = name
         self.commit = commit
 
@@ -670,9 +724,61 @@ class GitBranch(object):
 
 ##############################################################################
 
+class SvnDumpFile(svndump.file.SvnDumpFile):
+    def __init__(self):
+        svndump.file.SvnDumpFile.__init__(self)
+
+    def open_handle( self, filename, handle ):
+        """
+        Open a dump file for reading and read the header.
+        @type filename: string
+        @param filename: Name of an existing dump file.
+        """
+
+        # check state
+        if self.__state != self.ST_NONE:
+            raise SvnDumpException, "invalid state %d (should be %d)" % \
+                        ( self.__state, self.ST_NONE )
+
+        # set parameters
+        self.__filename = filename
+        self.__file     = handle
+
+        # check that it is a svn dump file
+        tag = self.__get_tag( True )
+        if tag[0] != "SVN-fs-dump-format-version:":
+            raise SvnDumpException, "not a svn dump file ???"
+        if tag[1] != "2":
+            raise SvnDumpException, "wrong svn dump file version (expected 2 found %s)" % ( tag[1] )
+        self.__skip_empty_line()
+
+        # get UUID
+        fileoffset = self.__file.tell()
+        tag = self.__get_tag( True )
+        if len( tag ) < 1 or tag[0] != "UUID:":
+            # back to start of revision
+            self.__file.seek( fileoffset )
+            self.__uuid = None
+        else:
+            # set UUID
+            self.__uuid = tag[1]
+            self.__skip_empty_line()
+
+        # done initializing
+        self.__rev_start_offset = self.__file.tell()
+        self.__state = self.ST_READ
+
 def revision_iterator(path):
-    dump = svndump.file.SvnDumpFile()
-    dump.open(path)
+    dump = SvnDumpFile()
+
+    ext = os.path.splitext(path)[1]
+    if ext in ('.bz', '.bz2'):
+        dump.open_handle(path, bz2.BZ2File(path, 'rb'))
+    elif ext in ('.z', '.Z', '.gz'):
+        dump.open_handle(path, gzip.GzipFile(path, 'rb'))
+    else:
+        dump.open(path)
+
     try:
         while dump.read_next_rev():
             txn = 1
@@ -684,15 +790,96 @@ def revision_iterator(path):
 
 ##############################################################################
 
+class StatusDisplay:
+    last_rev = 0
+
+    def __init__(self, verb, dry_run, debug, verbose):
+        self.verb    = verb
+        self.dry_run = dry_run
+        self.debug   = debug
+        self.verbose = verbose
+
+    def update(self, worker, rev=None):
+        if rev:
+            self.last_rev = rev
+        else:
+            rev = self.last_rev
+
+        if worker and not self.dry_run:
+            sys.stderr.write("%s %8s... (%9d pending git objects)" %
+                             (self.verb, 'r%d' % rev, worker.qsize()))
+        else:
+            sys.stderr.write("%s r%d..." % (self.verb, rev))
+
+        sys.stderr.write('\r' if not self.debug and not self.verbose else '\n')
+
+    def finish(self):
+        if not self.verbose and not self.debug:
+            sys.stderr.write('\n')
+
 class SubConvert(CommandLineApp):
-    def print_dumpfile(self, path):
-        for dump, txn, node in revision_iterator(path):
+    def __init__(self):
+        CommandLineApp.__init__(self)
+
+        self.usage = "usage: %prog [OPTIONS] <DUMP-FILE> <COMMAND>"
+
+        op = self.option_parser
+
+        op.add_option('-f', '--file', metavar='FILE',
+                      type='string', action='store', dest='dump_file',
+                      default=None, help='pathname of Subversion dump file')
+        op.add_option('', '--state', metavar='FILE',
+                      type='string', action='store', dest='state_file',
+                      default=None, help='pathname of SubConvert state file')
+        op.add_option('-V', '--verify',
+                      action='store_true', dest='verify',
+                      default=False, help='verify dump file contents')
+        op.add_option('', '--linear',
+                      action='store_true', dest='linear',
+                      default=False, help='do not use a threaded action queue')
+        op.add_option('', '--cutoff', metavar='REV',
+                      type='int', action='store', dest='cutoff_rev',
+                      default=0, help='stop working at revision REV')
+        op.add_option('-A', '--authors', metavar='FILE',
+                      type='string', action='store', dest='authors_file',
+                      default=None, help='pathname of author name mapping file')
+        op.add_option('-B', '--branches', metavar='FILE',
+                      type='string', action='store', dest='branches_file',
+                      default=None, help='pathname of branch/tag mapping file')
+        op.add_option('-M', '--modules', metavar='FILE',
+                      type='string', action='store', dest='modules_file',
+                      default=None, help='pathname of submodule mapping file')
+
+    def print_dumpfile(self):
+        for dump, txn, node in revision_iterator(self.options.dump_file):
             print "%9s %-7s %-4s %s%s" % \
                 ("r%d:%d" % (dump.get_rev_nr(), txn),
                  node.get_action(), node.get_kind(), node.get_path(),
                  " (copied from %s [r%d])" % \
                      (node.get_copy_from_path(), node.get_copy_from_rev())
                      if node.has_copy_from() else "")
+
+    def find_authors(self):
+        authors  = {}
+        last_rev = 0
+        status   = StatusDisplay('Scanning', True, self.options.debug,
+                                 self.options.verbose)
+
+        for dump, txn, node in revision_iterator(self.options.dump_file):
+            rev = dump.get_rev_nr()
+            if rev != last_rev:
+                status.update(None, rev)
+                last_rev = rev
+
+            if dump.get_rev_author() in authors:
+                authors[dump.get_rev_author()] += 1
+            else:
+                authors[dump.get_rev_author()] = 0
+
+        status.finish()
+
+        for author in sorted(authors.keys()):
+            print "%s\t%s\t%s\t%d" % (author, '', '', authors[author])
 
     def apply_action(self, branches, rev, path):
         if path not in branches:
@@ -712,13 +899,16 @@ class SubConvert(CommandLineApp):
                 branch[0] = rev
                 branch[1] += 1
 
-    def find_branches(self, path):
+    def find_branches(self):
         branches = {}
         last_rev = 0
-        for dump, txn, node in revision_iterator(path):
+        status   = StatusDisplay('Scanning', True, self.options.debug,
+                                 self.options.verbose)
+
+        for dump, txn, node in revision_iterator(self.options.dump_file):
             rev = dump.get_rev_nr()
             if rev != last_rev:
-                print >>sys.stderr, "Scanning r%s...\r" % rev,
+                status.update(None, rev)
                 last_rev = rev
 
             if node.get_action() != 'delete':
@@ -729,68 +919,119 @@ class SubConvert(CommandLineApp):
                     self.apply_action(branches, rev,
                                       os.path.dirname(node.get_path()))
 
+        status.finish()
+
         for path in sorted(branches.keys()):
             print "%s\t%d\t%s" % \
                 ("tag" if branches[path][1] == 1 else "branch",
                  branches[path][0], path)
 
-    def convert_repository(self, authors, path, worker):
-        last_rev = 0
-        commit   = None
-        activity = False
-        mapping  = {}
+    def current_commit(self, dump, path, copy_from=None):
+        current_branch = None
 
-        for dump, txn, node in revision_iterator(path):
+        for branch in self.branches:
+            if branch.prefix_re.match(path):
+                assert not current_branch
+                current_branch = branch
+                if not self.options.verify:
+                    break
+
+        if not current_branch:
+            current_branch = self.default_branch
+
+        if not current_branch.commit:
+            # If the first action is a dir/add/copyfrom, then this will get
+            # set correctly, otherwise it's a parentless branch, which is also
+            # completely OK.
+            commit = current_branch.commit = \
+                copy_from.fork() if copy_from else GitCommit()
+            # This copy is done to avoid each commit having to link back to
+            # its parent branch
+            commit.prefix = current_branch.prefix
+            self.log.info('Found new branch %s' % current_branch.name)
+        else:
+            commit = current_branch.commit.fork()
+            current_branch.commit = commit
+
+        # Setup the author and commit comment
+        author = dump.get_rev_author()
+        if author in self.authors:
+            author = self.authors[author]
+            commit.author_name  = author[0]
+            commit.author_email = author[1]
+        else:
+            commit.author_name  = author
+
+        commit.author_date = re.sub('\..*', '', dump.get_rev_date_str())
+        log                = dump.get_rev_log().rstrip(' \t\n\r')
+        commit.comment     = log + '\n\nSVN-Revision: %d' % dump.get_rev_nr()
+
+        return commit
+
+    def setup_conversion(self):
+        self.authors = {}
+        if self.options.authors_file:
+            for row in csv.reader(open(self.options.authors_file),
+                                  delimiter='\t'):
+                self.authors[row[0]] = \
+                    (row[1], re.sub('~', '.', re.sub('<>', '@', row[2])))
+
+        self.branches = []
+        if self.options.branches_file:
+            for row in csv.reader(open(self.options.branches_file),
+                                  delimiter='\t'):
+                branch = GitBranch(row[2])
+                branch.kind      = row[0]
+                branch.final_rev = int(row[1])
+                branch.prefix    = row[2]
+                branch.prefix_re = re.compile(re.escape(branch.prefix) + '(/|$)')
+                self.branches.append(branch)
+
+        self.last_rev       = 0
+        self.rev_mapping    = {}
+        self.commit         = None
+        self.default_branch = GitBranch('master')
+
+    def convert_repository(self, worker):
+        activity    = False
+        status      = StatusDisplay('Converting', self.options.dry_run,
+                                    self.options.debug, self.options.verbose)
+
+        for dump, txn, node in revision_iterator(self.options.dump_file):
             rev = dump.get_rev_nr()
-            if rev != last_rev:
-                if not self.options.verbose and not self.options.debug:
-                    if not self.options.dry_run:
-                        print >>sys.stderr, \
-                            "Converting r%6d... (%4d pending git objects)\r" % \
-                            (rev, worker.qsize()),
-                    else:
-                        print >>sys.stderr, "Converting r%d...\r" % rev,
-                else:
-                    if not self.options.debug:
-                        print >>sys.stderr, \
-                            "Converting r%d... (%d pending git objects)" % \
-                            (rev, worker.qsize())
-                    else:
-                        print >>sys.stderr, "Converting r%d..." % rev
+            if rev != self.last_rev:
+                if self.options.cutoff_rev and rev > self.options.cutoff_rev:
+                    self.log.info("Terminated at nearest cutoff revision %d%s" %
+                                  (rev, ' ' * 20))
+                    break
 
-                mapping[last_rev] = commit
+                status.update(worker, rev)
 
-                if commit:
-                    # If no files were seen in the previous revision, don't
-                    # build a commit and reuse the preceding commit object
+                if self.commit:
+                    self.rev_mapping[self.last_rev] = self.commit
+
+                    # If no activity was seen in the previous revision, don't
+                    # build a commit and just reuse the preceding commit
+                    # object (if there is one yet)
                     if activity:
                         if not self.options.dry_run:
-                            commit.post(worker)
-                        commit = commit.fork()
-                        activity = False
+                            self.commit.post(worker)
+                        self.commit = None
+
+                # Skip revisions we've already processed from a state file
+                # that was cut short using --cutoff
+                if rev < self.last_rev:
+                    continue
                 else:
-                    commit = GitCommit()
+                    self.last_rev = rev
 
-                last_rev = rev
+            path = node.get_path()
+            if not path: continue
 
-                author = dump.get_rev_author()
-                if author in authors:
-                    author = authors[author]
-                    commit.author_name  = author[0]
-                    commit.author_email = author[1]
-                else:
-                    commit.author_name  = author
-
-                commit.author_date  = re.sub('\..*', '', dump.get_rev_date_str())
-                commit.comment = (dump.get_rev_log() + '\nSVN-Revision: %d' % rev)
-
-            path   = node.get_path()
-            kind   = node.get_kind()   # file, dir
-            action = node.get_action() # add, change, delete, replace
+            kind   = node.get_kind()   # file|dir
+            action = node.get_action() # add|change|delete|replace
 
             if kind == 'file' and action in ('add', 'change'):
-                activity = True
-
                 if node.has_text():
                     text   = node.text_open()
                     length = node.get_text_length()
@@ -799,84 +1040,90 @@ class SubConvert(CommandLineApp):
                     node.text_close(text)
                     del text
 
-                    if node.has_md5():
+                    if self.options.verify and node.has_md5():
                         md5 = hashlib.md5()
                         md5.update(data)
                         assert node.get_text_md5() == md5.hexdigest()
                         del md5
                 else:
-                    # This is an empty file
-                    data = ''
+                    data = ''   # an empty file
 
-                commit.update(path, GitBlob(os.path.basename(path), data))
+                if not self.commit:
+                    self.commit = self.current_commit(dump, path)
+                self.commit.update(path, GitBlob(os.path.basename(path), data))
                 del data
 
-            elif action == 'delete':
                 activity = True
-                commit.remove(path)
+
+            elif action == 'delete':
+                if not self.commit:
+                    self.commit = self.current_commit(dump, path)
+                self.commit.remove(path)
+                activity = True
 
             elif (kind == 'dir' and action in 'add') and node.has_copy_from():
                 from_rev = node.get_copy_from_rev()
-                while from_rev > 0 and from_rev not in mapping:
+                while from_rev > 0 and from_rev not in self.rev_mapping:
                     from_rev -= 1
                 assert from_rev
-                tree = mapping[from_rev].lookup(node.get_copy_from_path())
-                if tree:
-                    activity = True
-                    commit.update(path, tree)
 
-        if not self.options.verbose and not self.options.debug:
-            print
+                past_commit = self.rev_mapping[from_rev]
+                if not self.commit:
+                    assert past_commit
+                    self.commit = self.current_commit(dump, path,
+                                                      copy_from=past_commit)
+
+                log.debug("dir add, copy from: " + node.get_copy_from_path())
+                log.debug("dir add, copy to:   " + path)
+
+                tree = past_commit.lookup(node.get_copy_from_path())
+                if tree:
+                    self.commit.update(path, tree)
+                    log.debug("dir add, commit is now: %s" % self.commit.dump_str())
+                    activity = True
+                else:
+                    activity = False
 
         if not self.options.dry_run:
-            commit.post(worker)
-        return commit
+            for branch in self.branches + [self.default_branch]:
+                if branch.commit:
+                    branch.post(worker)
+
+            worker.finish(status)
+
+        status.finish()
 
     def main(self, *args):
-        if 'branches' in args:
-            if len(args) < 2:
-                sys.stderr.write("usage: SubConvert.py <DUMP-FILE>\n")
-                sys.exit(1)
+        if 'print' in args and self.options.dump_file:
+            self.print_dumpfile()
 
-            self.find_branches(args[0])
+        elif 'authors' in args and self.options.dump_file:
+            self.find_authors()
 
-        elif 'print' in args:
-            if len(args) < 2:
-                sys.stderr.write("usage: SubConvert.py <DUMP-FILE>\n")
-                sys.exit(1)
+        elif 'branches' in args and self.options.dump_file:
+            self.find_branches()
 
-            self.print_dumpfile(args[0])
-
-        elif 'convert' in args:
-            if len(args) < 3:
-                sys.stderr.write("usage: SubConvert.py <AUTHORS> <DUMP-FILE>\n")
-                sys.exit(1)
-
-            authors = {}
-            for row in csv.reader(open(args[0]), delimiter='\t'):
-                authors[row[0]] = \
-                    (row[1], re.sub('~', '.', re.sub('<>', '@', row[2])))
+        elif 'convert' in args and self.options.dump_file:
+            if not os.path.isdir('.git'):
+                self.log.error('No .git directory in current working directory!')
+                return 1
 
             if not self.options.dry_run:
-                if not self.options.debug:
-                    worker = GitActionQueue()
+                if not self.options.linear:
+                    worker = GitThreadedQueue()
                     t = threading.Thread(target=worker.write)
                     t.start()
                 else:
-                    worker = GitDebugQueue()
+                    worker = GitLinearQueue()
             else:
                 worker = None
 
-            commit = self.convert_repository(authors, args[1], worker)
-            branch = GitBranch(commit)
+            self.setup_conversion()
+            self.convert_repository(worker)
 
-            if not self.options.dry_run:
-                branch.post(worker)
-                worker.finish()
-                git('symbolic-ref', 'HEAD', 'refs/heads/%s' % branch.name)
+            #git('symbolic-ref', 'HEAD', 'refs/heads/%s' % branch.name)
 
         elif 'git-test' in args:
-
             commit = GitCommit()
             commit.update('foo/bar/baz.c', GitBlob('baz.c', '#include <stdio.h>\n'))
             commit.author_name  = 'John Wiegley'
@@ -884,6 +1131,8 @@ class SubConvert(CommandLineApp):
             commit.author_date  = '2005-04-07T22:13:13'
             commit.comment      = "This is a sample commit.\n"
 
+            branch = GitBranch('feature', commit)
+            branch.post(worker)
 
             commit = commit.fork()      # makes a new commit based on the old one
             commit.remove('foo/bar/baz.c')
@@ -892,13 +1141,34 @@ class SubConvert(CommandLineApp):
             commit.author_date  = '2005-04-10T22:13:13'
             commit.comment      = "This removes the previous file.\n"
 
-            branch.commit = commit
+            branch = GitBranch('master', commit)
             branch.post(worker)
             worker.finish()
 
             git('symbolic-ref', 'HEAD', 'refs/heads/%s' % branch.name)
 
+        else:
+            self.option_parser.print_help()
+            self.exit_code = 1
+
 if __name__ == "__main__":
-    SubConvert().run()
+    state_file = None
+    for arg in sys.argv[1:]:
+        match = re.match('--state=(%s)', arg)
+        if match:
+            state_file = match.group(1)
+            break
+
+    if state_file and os.path.isfile(state_file):
+        with open(state_file, 'rb') as fd:
+            convert = cPickle.load(fd)
+    else:
+        convert = SubConvert()
+
+    convert.run()
+
+    if state_file:
+        with open(state_file, 'wb') as fd:
+            cPickle.dump(convert, fd)
 
 ### SubConvert.py ends here
