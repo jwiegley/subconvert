@@ -12,6 +12,7 @@ if [[ $1 == "reset" ]]; then
     (cd $BOOST_GIT && \
      git checkout master && \
      git reset --hard origin/master && \
+     git submodule foreach git checkout master && \
      git submodule foreach git reset --hard origin/master && \
      git clean -fdx && \
      git status --porcelain | awk '{print $2}' | xargs rm -fr)
