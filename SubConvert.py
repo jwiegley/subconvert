@@ -651,9 +651,9 @@ class GitCommit(object):
             tree = self.tree.lookup(self.prefix)
         else:
             tree = self.tree
-        assert tree
-        assert isinstance(tree, GitTree)
-        tree.post(q)
+        if tree:
+            assert isinstance(tree, GitTree)
+            tree.post(q)
         q.enqueue(self)
         self.posted = True
 
@@ -664,6 +664,10 @@ class GitCommit(object):
             tree = self.tree.lookup(self.prefix)
         else:
             tree = self.tree
+
+        if not tree:
+            tree = GitTree()    # create an empty tree
+            tree.write()
 
         if not tree.sha1:
             raise GitError('Commit tree has no SHA1: %s' % self.dump_str())
