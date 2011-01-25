@@ -10,7 +10,6 @@
 #include <boost/filesystem/fstream.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
-#include <boost/function.hpp>
 #include <boost/optional.hpp>
 
 #include <git2.h>
@@ -419,19 +418,82 @@ namespace SvnDump
     }
     return false;
   }
-  
-  inline void
-  foreach_node(const boost::filesystem::path& file,
-               boost::function<void(const File&, const File::Node&)> actor)
-  {
-    File dump(file);
-
-    while (dump.read_next())
-        actor(dump, dump.get_curr_node());
-  }
 }
 
-struct StatusDisplay
+class StatusDisplay
+{
+  std::ostream& out;
+  std::string   verb;
+  bool          dry_run;
+  bool          debug;
+  bool          verbose;
+
+public:
+  StatusDisplay(std::ostream&      _out,
+                const std::string& _verb    = "Scanning",
+                bool               _dry_run = false,
+                bool               _debug   = false,
+                bool               _verbose = false) :
+    out(_out), verb(_verb), dry_run(_dry_run),
+    debug(_debug), verbose(_verbose) {}
+
+  void update(const int rev = -1) const {
+    out << verb << ' ';
+    if (rev != -1)
+      out << 'r' << rev;
+    else
+      out << "finished";
+    out << "..." << ((! debug && ! verbose) ? '\r' : '\n');
+  }
+
+  void finish() const {
+    if (! verbose && ! debug)
+      out << '\n';
+  }
+};
+
+struct FindAuthors
+{
+  typedef std::map<std::string, int> authors_map;
+  typedef authors_map::value_type    authors_value;
+
+  authors_map    authors;
+  StatusDisplay& status;
+  int            last_rev;
+
+  FindAuthors(StatusDisplay& _status) :
+    status(_status), last_rev(-1) {}
+
+  void operator()(const SvnDump::File&       dump,
+                  const SvnDump::File::Node& node)
+  {
+    int rev = dump.get_rev_nr();
+    if (rev != last_rev) {
+      status.update(rev);
+      last_rev = rev;
+
+      std::string author = dump.get_rev_author();
+      if (! author.empty()) {
+        authors_map::iterator i = authors.find(author);
+        if (i != authors.end())
+          ++(*i).second;
+        else
+          authors.insert(authors_value(author, 0));
+      }
+    }
+  }
+
+  void report(std::ostream& out) const {
+    status.finish();
+
+    for (authors_map::const_iterator i = authors.begin();
+         i != authors.end();
+         i++)
+      out << (*i).first << "\t\t\t" << (*i).second << '\n';
+  }
+};
+
+struct FindBranches
 {
 };
 
@@ -474,8 +536,35 @@ struct PrintDumpFile
 
 int main(int argc, char *argv[])
 {
-  PrintDumpFile printer;
+  // Examine any option settings made by the user.  -f is the only
+  // required one.
 
-  SvnDump::foreach_node(argv[1], printer);
+  // Any remaining arguments are the command verb and its particular
+  // arguments.
+
+  std::string   cmd(argv[1]);
+  SvnDump::File dump(argv[2]);
+
+  if (cmd == "print") {
+    PrintDumpFile printer;
+
+    while (dump.read_next())
+      printer(dump, dump.get_curr_node());
+  }
+  else if (cmd == "authors") {
+    StatusDisplay status(std::cerr);
+    FindAuthors author_finder(status);
+
+    while (dump.read_next())
+      author_finder(dump, dump.get_curr_node());
+    author_finder.report(std::cout);
+  }
+  else if (cmd == "branches") {
+  }
+  else if (cmd == "convert") {
+  }
+  else if (cmd == "git-test") {
+  }
+
   return 0;
 }
