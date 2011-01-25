@@ -41,12 +41,15 @@
 
 #include "config.h"
 
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/optional.hpp>
+
+#define BOOST_FILESYSTEM_VERSION 3
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
-#include <boost/optional.hpp>
 
 #ifdef HAVE_OPENSSL_MD5_H
 #include <openssl/md5.h>
@@ -95,7 +98,7 @@ namespace SvnDump
     int last_rev;
 
     std::string                  rev_author;
-    std::string                  rev_date;
+    std::time_t                  rev_date;
     boost::optional<std::string> rev_log;
 
     boost::filesystem::ifstream * handle;
@@ -238,7 +241,7 @@ namespace SvnDump
     std::string get_rev_author() const {
       return rev_author;
     }
-    std::string get_rev_date() const {
+    std::time_t get_rev_date() const {
       return rev_date;
     }
     boost::optional<std::string> get_rev_log() const {
@@ -254,7 +257,7 @@ namespace SvnDump
 
   bool File::read_next(const bool ignore_text, const bool verify)
   {
-    static const std::size_t MAX_LINE = 8192;
+    static const int MAX_LINE = 8192;
 
     char linebuf[MAX_LINE + 1];
 
@@ -266,10 +269,10 @@ namespace SvnDump
       STATE_NEXT
     } state = STATE_NEXT;
 
-    int  prop_content_length;
-    int  text_content_length;
-    int  content_length;
-    bool saw_node_path;
+    int  prop_content_length = -1;
+    int  text_content_length = -1;
+    int  content_length      = -1;
+    bool saw_node_path       = false;
 
     while (handle->good() && ! handle->eof()) {
       switch (state) {
@@ -406,8 +409,11 @@ namespace SvnDump
 
             if (is_key)
               property   = p;
-            else if (property == "svn:date")
-              rev_date   = p;
+            else if (property == "svn:date") {
+              struct tm then;
+              strptime(p, "%Y-%m-%dT%H:%M:%S", &then);
+              rev_date   = std::mktime(&then);
+            }
             else if (property == "svn:author")
               rev_author = p;
             else if (property == "svn:log")
@@ -450,9 +456,11 @@ namespace SvnDump
 
 #ifdef HAVE_LIBCRYPTO
           if (verify) {
+#if defined(HAVE_OPENSSL_MD5_H) || defined(HAVE_OPENSSL_SHA_H)
             git_oid oid;
+#endif
             char checksum[41];
-#ifdef HAVE_OPENSSL_MD5
+#ifdef HAVE_OPENSSL_MD5_H
             if (curr_node.has_md5()) {
               MD5(reinterpret_cast<const unsigned char *>(curr_node.get_text()),
                   curr_node.get_text_length(), oid.id);
@@ -465,8 +473,8 @@ namespace SvnDump
                            oid.id[12], oid.id[13], oid.id[14], oid.id[15]);
               assert(curr_node.get_text_md5() == checksum);
             }
-#endif // HAVE_OPENSSL_MD5
-#ifdef HAVE_OPENSSL_SHA1
+#endif // HAVE_OPENSSL_MD5_H
+#ifdef HAVE_OPENSSL_SHA_H
             if (curr_node.has_sha1()) {
               SHA1(reinterpret_cast<const unsigned char *>(curr_node.get_text()),
                    curr_node.get_text_length(), oid.id);
@@ -474,7 +482,7 @@ namespace SvnDump
               checksum[40] = '\0';
               assert(curr_node.get_text_sha1() == checksum);
             }
-#endif // HAVE_OPENSSL_SHA1
+#endif // HAVE_OPENSSL_SHA_H
           }
 #endif // HAVE_LIBCRYPTO
         }
@@ -555,11 +563,9 @@ struct FindAuthors
   StatusDisplay& status;
   int            last_rev;
 
-  FindAuthors(StatusDisplay& _status) :
-    status(_status), last_rev(-1) {}
+  FindAuthors(StatusDisplay& _status) : status(_status), last_rev(-1) {}
 
-  void operator()(const SvnDump::File&       dump,
-                  const SvnDump::File::Node& node)
+  void operator()(const SvnDump::File& dump, const SvnDump::File::Node&)
   {
     int rev = dump.get_rev_nr();
     if (rev != last_rev) {
@@ -582,18 +588,114 @@ struct FindAuthors
 
     for (authors_map::const_iterator i = authors.begin();
          i != authors.end();
-         i++)
+         ++i)
       out << (*i).first << "\t\t\t" << (*i).second << '\n';
   }
 };
 
 struct FindBranches
 {
+  struct BranchInfo {
+    int         last_rev;
+    int         changes;
+    std::time_t last_date;
+
+    BranchInfo() : last_rev(0), changes(0), last_date(0) {}
+  };
+
+  typedef std::map<boost::filesystem::path, BranchInfo> branches_map;
+  typedef branches_map::value_type branches_value;
+
+  branches_map   branches;
+  StatusDisplay& status;
+  int            last_rev;
+
+  FindBranches(StatusDisplay& _status) : status(_status), last_rev(-1) {}
+
+  void apply_action(int rev, std::time_t date,
+                    const boost::filesystem::path& pathname) {
+    if (branches.find(pathname) == branches.end()) {
+      std::vector<boost::filesystem::path> to_remove;
+
+      for (branches_map::iterator i = branches.begin();
+           i != branches.end();
+           ++i)
+        if (boost::starts_with((*i).first.string(), pathname.string() + '/'))
+          to_remove.push_back((*i).first);
+
+      for (std::vector<boost::filesystem::path>::iterator i = to_remove.begin();
+           i != to_remove.end();
+           ++i)
+        branches.erase(*i);
+
+      boost::optional<branches_map::iterator> branch;
+
+      for (branches_map::iterator i = branches.begin();
+           i != branches.end();
+           ++i)
+        if (boost::starts_with(pathname.string(), (*i).first.string() + '/')) {
+          branch = i;
+          break;
+        }
+
+      if (! branch) {
+        std::pair<branches_map::iterator, bool> result =
+          branches.insert(branches_value(pathname, BranchInfo()));
+        assert(result.second);
+        branch = result.first;
+      }
+
+      if ((**branch).second.last_rev != rev) {
+        (**branch).second.last_rev  = rev;
+        (**branch).second.last_date = date;
+        ++(**branch).second.changes;
+      }
+    }
+  }
+
+  void operator()(const SvnDump::File&       dump,
+                  const SvnDump::File::Node& node)
+  {
+    int rev = dump.get_rev_nr();
+    if (rev != last_rev) {
+      status.update(rev);
+      last_rev = rev;
+
+      if (node.get_action() != SvnDump::File::Node::ACTION_DELETE)
+        if (node.get_kind() == SvnDump::File::Node::KIND_DIR) {
+          if (node.has_copy_from())
+            apply_action(rev, dump.get_rev_date(), node.get_path());
+        } else {
+          apply_action(rev, dump.get_rev_date(),
+                       node.get_path().parent_path());
+        }
+    }
+  }
+
+  void report(std::ostream& out) const {
+    status.finish();
+
+    for (branches_map::const_iterator i = branches.begin();
+         i != branches.end();
+         ++i) {
+      char buf[64];
+      struct tm * then = std::localtime(&(*i).second.last_date);
+      std::strftime(buf, 63, "%Y-%m-%d", then);
+
+      out << ((*i).second.changes == 1 ? "tag" : "branch") << '\t'
+          << (*i).second.last_rev << '\t' << buf << '\t'
+          << (*i).second.changes << '\t'
+          << (*i).first.string() << '\t' << (*i).first.string() << '\n';
+    }
+  }
 };
 
 struct PrintDumpFile
 {
+  PrintDumpFile(StatusDisplay&) {}
+
   void operator()(const SvnDump::File&       dump,
+
                   const SvnDump::File::Node& node)
   {
     { std::ostringstream buf;
@@ -605,6 +707,7 @@ struct PrintDumpFile
     std::cout.width(8);
     std::cout << std::left;
     switch (node.get_action()) {
+    case SvnDump::File::Node::ACTION_NONE:    std::cout << ' ';        break;
     case SvnDump::File::Node::ACTION_ADD:     std::cout << "add ";     break;
     case SvnDump::File::Node::ACTION_DELETE:  std::cout << "delete ";  break;
     case SvnDump::File::Node::ACTION_CHANGE:  std::cout << "change ";  break;
@@ -626,7 +729,23 @@ struct PrintDumpFile
 
     std::cout << '\n';
   }
+
+  void report(std::ostream&) const {}
 };
+
+template <typename T>
+void invoke_scanner(SvnDump::File&     dump,
+                    const std::string& verb = "Reading revisions")
+{
+  StatusDisplay status(std::cerr, verb);
+  T finder(status);
+
+  while (dump.read_next(/* ignore_text= */ true)) {
+    status.set_last_rev(dump.get_last_rev_nr());
+    finder(dump, dump.get_curr_node());
+  }
+  finder.report(std::cout);
+}
 
 int main(int argc, char *argv[])
 {
@@ -640,16 +759,13 @@ int main(int argc, char *argv[])
   for (int i = 1; i < argc; ++i) {
     if (argv[i][0] == '-') {
       if (argv[i][1] == '-') {
-        if (std::strcmp(&argv[i][2], "verify")) {
+        if (std::strcmp(&argv[i][2], "verify") == 0)
           opts.verify = true;
-        }          
       }
-      else if (std::strcmp(&argv[i][1], "v")) {
+      else if (std::strcmp(&argv[i][1], "v") == 0)
         opts.verbose = true;
-      }
-      else if (std::strcmp(&argv[i][1], "d")) {
+      else if (std::strcmp(&argv[i][1], "d") == 0)
         opts.debug = 1;
-      }
     } else {
       args.push_back(argv[i]);
     }
@@ -668,20 +784,13 @@ int main(int argc, char *argv[])
   SvnDump::File dump(args[1]);
 
   if (cmd == "print") {
-    PrintDumpFile printer;
-
-    while (dump.read_next(/* ignore_text= */ true))
-      printer(dump, dump.get_curr_node());
+    invoke_scanner<PrintDumpFile>(dump);
   }
   else if (cmd == "authors") {
-    StatusDisplay status(std::cerr);
-    FindAuthors author_finder(status);
-
-    while (dump.read_next(/* ignore_text= */ true))
-      author_finder(dump, dump.get_curr_node());
-    author_finder.report(std::cout);
+    invoke_scanner<FindAuthors>(dump);
   }
   else if (cmd == "branches") {
+    invoke_scanner<FindBranches>(dump);
   }
   else if (cmd == "convert") {
   }
@@ -697,6 +806,28 @@ int main(int argc, char *argv[])
       status.finish();
   }
   else if (cmd == "git-test") {
+#if 0
+    GitCommit commit;
+
+    commit.update('foo/bar/baz.c', GitBlob('#include <stdio.h>\n'));
+    commit.author_name  = 'John Wiegley';
+    commit.author_email = 'johnw@boostpro.com';
+    commit.author_date  = '2005-04-07T22:13:13';
+    commit.comment      = "This is a sample commit.\n";
+
+    GitBranch branch('feature', commit);
+
+    commit = commit.fork();      // makes a new commit based on the old one
+    commit.remove('foo/bar/baz.c');
+    commit.author_name  = 'John Wiegley';
+    commit.author_email = 'johnw@boostpro.com';
+    commit.author_date  = '2005-04-10T22:13:13';
+    commit.comment      = "This removes the previous file.\n";
+
+    GitBranch master('master', commit);
+
+    git('symbolic-ref', 'HEAD', 'refs/heads/%s' % branch.name);
+#endif
   }
 
   return 0;
