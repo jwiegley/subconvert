@@ -1,9 +1,11 @@
 #include <iostream>
 #include <sstream>
+#include <vector>
 #include <map>
 #include <memory>
 #include <string>
 #include <cstring>
+#include <cstdio>
 
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/exception.hpp>
@@ -12,7 +14,23 @@
 #include <boost/filesystem/path.hpp>
 #include <boost/optional.hpp>
 
+#define HAVE_OPENSSL_MD5  (1)
+#define HAVE_OPENSSL_SHA1 (1)
+
+#ifdef HAVE_OPENSSL_MD5
+#include <openssl/md5.h>
+#endif
+#ifdef HAVE_OPENSSL_SHA1
+#include <openssl/sha.h>
+#endif
+
 #include <git2.h>
+
+#define ASSERTS (1)
+#ifndef ASSERTS
+#undef assert
+#define assert(x)
+#endif
 
 namespace Git
 {
@@ -43,6 +61,7 @@ namespace SvnDump
   class File : public boost::noncopyable
   {
     int curr_rev;
+    int last_rev;
 
     std::string                  rev_author;
     std::string                  rev_date;
@@ -73,18 +92,18 @@ namespace SvnDump
       boost::filesystem::path                  pathname;
       Kind                                     kind;
       Action                                   action;
-      boost::optional<std::string>             text;
-#ifdef USE_CHECKSUMS
+      char *                                   text;
+      int                                      text_len;
       boost::optional<std::string>             md5_checksum;
       boost::optional<std::string>             sha1_checksum;
-#endif
       boost::optional<int>                     copy_from_rev;
       boost::optional<boost::filesystem::path> copy_from_path;
 
       friend class File;
 
     public:
-      Node() : curr_txn(-1) { reset(); }
+      Node() : curr_txn(-1), text(NULL) { reset(); }
+      ~Node() { reset(); }
 
       void reset() {
         kind     = KIND_NONE;
@@ -92,11 +111,12 @@ namespace SvnDump
 
         pathname.clear();
 
-        text           = boost::none;
-#ifdef USE_CHECKSUMS
+        if (text)
+          delete[] text;
+        text = NULL;
+
         md5_checksum   = boost::none;
         sha1_checksum  = boost::none;
-#endif
         copy_from_rev  = boost::none;
         copy_from_path = boost::none;
       }
@@ -124,12 +144,14 @@ namespace SvnDump
         return *copy_from_rev;
       }
       bool has_text() const {
+        return text != NULL;
+      }
+      const char * get_text() const {
         return text;
       }
       std::size_t get_text_length() const {
-        return text->length();
+        return text_len;
       }
-#if USE_CHECKSUMS
       bool has_md5() const {
         return md5_checksum;
       }
@@ -142,7 +164,6 @@ namespace SvnDump
       std::string get_text_sha1() const {
         return *sha1_checksum;
       }
-#endif
     };
 
   private:
@@ -177,6 +198,9 @@ namespace SvnDump
     int get_rev_nr() const {
       return curr_rev;
     }
+    int get_last_rev_nr() const {
+      return last_rev;
+    }
     const Node& get_curr_node() const {
       return curr_node;
     }
@@ -190,13 +214,14 @@ namespace SvnDump
       return rev_log;
     }
 
-    bool read_next();
+    bool read_next(const bool ignore_text = false,
+                   const bool verify      = false);
 
   private:
     void read_tags();
   };
 
-  bool File::read_next()
+  bool File::read_next(const bool ignore_text, const bool verify)
   {
     static const std::size_t MAX_LINE = 8192;
 
@@ -214,25 +239,6 @@ namespace SvnDump
     int  text_content_length;
     int  content_length;
     bool saw_node_path;
-
-    static bool sought_chars[256] = {
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-      1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    };
 
     while (handle->good() && ! handle->eof()) {
       switch (state) {
@@ -254,69 +260,64 @@ namespace SvnDump
         handle->getline(linebuf, MAX_LINE);
 
         if (const char * p = std::strchr(linebuf, ':')) {
-          if (sought_chars[linebuf[0]]) {
-            std::string property(linebuf, 0, p - linebuf);
+          std::string property(linebuf, 0, p - linebuf);
+          switch (property[0]) {
+          case 'C':
+            if (property == "Content-length")
+              content_length = std::atoi(p + 2);
+            break;
 
-            switch (property[0]) {
-            case 'C':
-              if (property == "Content-length")
-                content_length = std::atoi(p + 2);
-              break;
-
-            case 'N':
-              if (property == "Node-path") {
-                curr_node.curr_txn += 1;
-                curr_node.pathname = p + 2;
-                saw_node_path = true;
-              }
-              else if (property == "Node-kind") {
-                if (*(p + 2) == 'f')
-                  curr_node.kind = Node::KIND_FILE;
-                else if (*(p + 2) == 'd')
-                  curr_node.kind = Node::KIND_DIR;
-              }
-              else if (property == "Node-action") {
-                if (*(p + 2) == 'a')
-                  curr_node.action = Node::ACTION_ADD;
-                else if (*(p + 2) == 'd')
-                  curr_node.action = Node::ACTION_DELETE;
-                else if (*(p + 2) == 'c')
-                  curr_node.action = Node::ACTION_CHANGE;
-                else if (*(p + 2) == 'r')
-                  curr_node.action = Node::ACTION_REPLACE;
-              }
-              else if (property == "Node-copyfrom-rev") {
-                curr_node.copy_from_rev = std::atoi(p + 2);
-              }
-              else if (property == "Node-copyfrom-path") {
-                curr_node.copy_from_path = p + 2;
-              }
-              break;
-
-            case 'P':
-              if (property == "Prop-content-length")
-                prop_content_length = std::atoi(p + 2);
-              break;
-
-            case 'R':
-              if (property == "Revision-number") {
-                curr_rev  = std::atoi(p + 2);
-                rev_log   = boost::none;
-                curr_node.curr_txn = -1;
-              }
-              break;
-
-            case 'T':
-              if (property == "Text-content-length")
-                text_content_length = std::atoi(p + 2);
-#ifdef USE_CHECKSUMS
-              else if (property == "Text-content-md5")
-                curr_node.md5_checksum = p + 2;
-              else if (property == "Text-content-sha1")
-                curr_node.sha1_checksum = p + 2;
-#endif
-              break;
+          case 'N':
+            if (property == "Node-path") {
+              curr_node.curr_txn += 1;
+              curr_node.pathname = p + 2;
+              saw_node_path = true;
             }
+            else if (property == "Node-kind") {
+              if (*(p + 2) == 'f')
+                curr_node.kind = Node::KIND_FILE;
+              else if (*(p + 2) == 'd')
+                curr_node.kind = Node::KIND_DIR;
+            }
+            else if (property == "Node-action") {
+              if (*(p + 2) == 'a')
+                curr_node.action = Node::ACTION_ADD;
+              else if (*(p + 2) == 'd')
+                curr_node.action = Node::ACTION_DELETE;
+              else if (*(p + 2) == 'c')
+                curr_node.action = Node::ACTION_CHANGE;
+              else if (*(p + 2) == 'r')
+                curr_node.action = Node::ACTION_REPLACE;
+            }
+            else if (property == "Node-copyfrom-rev") {
+              curr_node.copy_from_rev = std::atoi(p + 2);
+            }
+            else if (property == "Node-copyfrom-path") {
+              curr_node.copy_from_path = p + 2;
+            }
+            break;
+
+          case 'P':
+            if (property == "Prop-content-length")
+              prop_content_length = std::atoi(p + 2);
+            break;
+
+          case 'R':
+            if (property == "Revision-number") {
+              curr_rev  = std::atoi(p + 2);
+              rev_log   = boost::none;
+              curr_node.curr_txn = -1;
+            }
+            break;
+
+          case 'T':
+            if (property == "Text-content-length")
+              text_content_length = std::atoi(p + 2);
+            else if (verify && property == "Text-content-md5")
+              curr_node.md5_checksum = p + 2;
+            else if (verify && property == "Text-content-sha1")
+              curr_node.sha1_checksum = p + 2;
+            break;
           }
         }
         else if (linebuf[0] == '\0') {
@@ -380,6 +381,8 @@ namespace SvnDump
               rev_author = p;
             else if (property == "svn:log")
               rev_log    = p;
+            else if (property == "svn:sync-last-merged-rev")
+              last_rev   = std::atoi(p);
 
             p = q + 1;
           } else {
@@ -403,9 +406,46 @@ namespace SvnDump
       }
 
       case STATE_BODY:
-        handle->seekg(text_content_length, std::ios::cur);
+        if (ignore_text) {
+          handle->seekg(text_content_length, std::ios::cur);
+        } else {
+          assert(! curr_node.has_text());
+          assert(text_content_length > 0);
 
-      end_text:
+          curr_node.text     = new char[text_content_length];
+          curr_node.text_len = text_content_length;
+
+          handle->read(curr_node.text, text_content_length);
+
+          if (verify) {
+            git_oid oid;
+            char checksum[41];
+#ifdef HAVE_OPENSSL_MD5
+            if (curr_node.has_md5()) {
+              MD5(reinterpret_cast<const unsigned char *>(curr_node.get_text()),
+                  curr_node.get_text_length(), oid.id);
+              std::sprintf(checksum,
+                           "%02x%02x%02x%02x%02x%02x%02x%02x"
+                           "%02x%02x%02x%02x%02x%02x%02x%02x",
+                           oid.id[0],  oid.id[1],  oid.id[2],  oid.id[3],
+                           oid.id[4],  oid.id[5],  oid.id[6],  oid.id[7],
+                           oid.id[8],  oid.id[9],  oid.id[10], oid.id[11],
+                           oid.id[12], oid.id[13], oid.id[14], oid.id[15]);
+              assert(curr_node.get_text_md5() == checksum);
+            }
+#endif
+#ifdef HAVE_OPENSSL_SHA1
+            if (curr_node.has_sha1()) {
+              SHA1(reinterpret_cast<const unsigned char *>(curr_node.get_text()),
+                   curr_node.get_text_length(), oid.id);
+              git_oid_fmt(checksum, &oid);
+              checksum[40] = '\0';
+              assert(curr_node.get_text_sha1() == checksum);
+            }
+#endif
+          }
+        }
+
         if (curr_rev == -1 || curr_node.curr_txn == -1)
           state = STATE_NEXT;
         else
@@ -420,30 +460,51 @@ namespace SvnDump
   }
 }
 
+struct GlobalOptions
+{
+  bool verify;
+  bool verbose;
+  int  debug;
+
+  GlobalOptions() : verify(false), verbose(false), debug(0) {}
+} opts;
+
 class StatusDisplay
 {
   std::ostream& out;
   std::string   verb;
+  int           last_rev;
   bool          dry_run;
   bool          debug;
   bool          verbose;
 
 public:
   StatusDisplay(std::ostream&      _out,
-                const std::string& _verb    = "Scanning",
-                bool               _dry_run = false,
-                bool               _debug   = false,
-                bool               _verbose = false) :
-    out(_out), verb(_verb), dry_run(_dry_run),
+                const std::string& _verb     = "Scanning",
+                int                _last_rev = -1,
+                bool               _dry_run  = false,
+                bool               _debug    = false,
+                bool               _verbose  = false) :
+    out(_out), verb(_verb), last_rev(_last_rev), dry_run(_dry_run),
     debug(_debug), verbose(_verbose) {}
 
+  void set_last_rev(int _last_rev = -1) {
+    last_rev = _last_rev;
+  }
+
   void update(const int rev = -1) const {
-    out << verb << ' ';
-    if (rev != -1)
-      out << 'r' << rev;
-    else
-      out << "finished";
-    out << "..." << ((! debug && ! verbose) ? '\r' : '\n');
+    out << verb << ": ";
+    if (rev != -1) {
+      if (last_rev) {
+        out << int((rev * 100) / last_rev) << '%'
+            << " (" << rev << '/' << last_rev << ')';
+      } else {
+        out << rev;
+      }
+    } else {
+      out << ", done.";
+    }
+    out << ((! debug && ! verbose) ? '\r' : '\n');
   }
 
   void finish() const {
@@ -536,32 +597,71 @@ struct PrintDumpFile
 
 int main(int argc, char *argv[])
 {
+  std::ios::sync_with_stdio(false);
+
   // Examine any option settings made by the user.  -f is the only
   // required one.
+
+  std::vector<std::string> args;
+
+  for (int i = 1; i < argc; ++i) {
+    if (argv[i][0] == '-') {
+      if (argv[i][1] == '-') {
+        if (std::strcmp(&argv[i][2], "verify")) {
+          opts.verify = true;
+        }          
+      }
+      else if (std::strcmp(&argv[i][1], "v")) {
+        opts.verbose = true;
+      }
+      else if (std::strcmp(&argv[i][1], "d")) {
+        opts.debug = 1;
+      }
+    } else {
+      args.push_back(argv[i]);
+    }
+  }
 
   // Any remaining arguments are the command verb and its particular
   // arguments.
 
-  std::string   cmd(argv[1]);
-  SvnDump::File dump(argv[2]);
+  if (args.size() < 2) {
+    std::cerr << "usage: subconvert [options] COMMAND DUMP-FILE"
+              << std::endl;
+    return 1;
+  }
+
+  std::string   cmd(args[0]);
+  SvnDump::File dump(args[1]);
 
   if (cmd == "print") {
     PrintDumpFile printer;
 
-    while (dump.read_next())
+    while (dump.read_next(/* ignore_text= */ true))
       printer(dump, dump.get_curr_node());
   }
   else if (cmd == "authors") {
     StatusDisplay status(std::cerr);
     FindAuthors author_finder(status);
 
-    while (dump.read_next())
+    while (dump.read_next(/* ignore_text= */ true))
       author_finder(dump, dump.get_curr_node());
     author_finder.report(std::cout);
   }
   else if (cmd == "branches") {
   }
   else if (cmd == "convert") {
+  }
+  else if (cmd == "scan") {
+    StatusDisplay status(std::cerr);
+    while (dump.read_next(/* ignore_text= */ !opts.verify,
+                          /* verify=      */ opts.verify)) {
+      status.set_last_rev(dump.get_last_rev_nr());
+      if (opts.verbose)
+        status.update(dump.get_rev_nr());
+    }
+    if (opts.verbose)
+      status.finish();
   }
   else if (cmd == "git-test") {
   }
