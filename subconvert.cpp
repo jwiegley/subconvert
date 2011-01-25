@@ -11,7 +11,6 @@
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/function.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
 
 #include <git2.h>
@@ -262,7 +261,7 @@ namespace SvnDump
             switch (property[0]) {
             case 'C':
               if (property == "Content-length")
-                content_length = boost::lexical_cast<int>(p + 2);
+                content_length = std::atoi(p + 2);
               break;
 
             case 'N':
@@ -288,7 +287,7 @@ namespace SvnDump
                   curr_node.action = Node::ACTION_REPLACE;
               }
               else if (property == "Node-copyfrom-rev") {
-                curr_node.copy_from_rev = boost::lexical_cast<int>(p + 2);
+                curr_node.copy_from_rev = std::atoi(p + 2);
               }
               else if (property == "Node-copyfrom-path") {
                 curr_node.copy_from_path = p + 2;
@@ -297,12 +296,12 @@ namespace SvnDump
 
             case 'P':
               if (property == "Prop-content-length")
-                prop_content_length = boost::lexical_cast<int>(p + 2);
+                prop_content_length = std::atoi(p + 2);
               break;
 
             case 'R':
               if (property == "Revision-number") {
-                curr_rev  = boost::lexical_cast<int>(p + 2);
+                curr_rev  = std::atoi(p + 2);
                 rev_log   = boost::none;
                 curr_node.curr_txn = -1;
               }
@@ -310,7 +309,7 @@ namespace SvnDump
 
             case 'T':
               if (property == "Text-content-length")
-                text_content_length = boost::lexical_cast<int>(p + 2);
+                text_content_length = std::atoi(p + 2);
 #ifdef USE_CHECKSUMS
               else if (property == "Text-content-md5")
                 curr_node.md5_checksum = p + 2;
@@ -369,7 +368,7 @@ namespace SvnDump
             q = std::strchr(p, '\n');
             assert(q != NULL);
             *q = '\0';
-            len = boost::lexical_cast<int>(p + 2);
+            len = std::atoi(p + 2);
             p = q + 1;
             q = p + len;
             *q = '\0';

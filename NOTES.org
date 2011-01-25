@@ -5,8 +5,7 @@
 
   |        |           |         <r> |       <r> |     <r> |           <r> |
   | Python |           | 81.41s user | 8.98s sys | 88% cpu | 1:42.47 total |
-  | C++    | g++ -g3   | 10.37s user | 2.38s sys | 98% cpu | 0:13.06 total |
-  | C++    | g++ -fast |  7.82s user | 2.38s sys | 98% cpu | 0:10.33 total |
+  | C++    | g++ -fast |  6.42s user | 2.13s sys | 99% cpu | 0:08.55 total |
 
 * [2011-01-23 Sun] Initial flat conversion completed, unoptimized
 
