@@ -68,25 +68,67 @@
 
 namespace Git
 {
-  class Object
+  class Tree
   {
-    int sha1;
+    git_tree * tree;
+
+  public:
+    Tree(git_tree * _tree) : tree(_tree) {}
   };
 
-  class Blob : public Object
+  class Commit
   {
-  };
+    git_commit * commit;
 
-  class Tree : public Object
-  {
-  };
-
-  class Commit : public Object
-  {
+  public:
+    Commit(git_commit * _commit) : commit(_commit) {}
   };
 
   class Branch
   {
+  };
+
+  class Repository
+  {
+    git_repository * repo;
+
+  public:
+    Repository(const boost::filesystem::path& pathname) {
+      if (git_repository_open(&repo, pathname.string().c_str()) != 0)
+        throw std::logic_error(std::string("Could not open Git repository: ") +
+                               pathname.string());
+    }
+    ~Repository() {
+      git_repository_free(repo);
+    }
+
+    const git_oid * create_blob(const char * data, std::size_t len) {
+      git_blob *blob;
+      if (git_blob_new(&blob, repo) != 0)
+        throw std::logic_error("Could not create Git blob");
+
+      if (git_blob_set_rawcontent(blob, data, len) != 0)
+        throw std::logic_error("Could not set Git blob contents");
+
+      if (git_object_write(reinterpret_cast<git_object *>(blob)) != 0)
+        throw std::logic_error("Could not write Git blob");
+
+      return git_object_id(reinterpret_cast<git_object *>(blob));
+    }
+
+    git_tree * create_tree() {
+      git_tree * tree;
+      if (git_tree_new(&tree, repo) != 0)
+        throw std::logic_error("Could not create Git tree");
+      return tree;
+    }
+
+    git_commit * create_commit() {
+      git_commit * commit;
+      if (git_commit_new(&commit, repo) != 0)
+        throw std::logic_error("Could not create Git commit");
+      return commit;
+    }
   };
 }
 
@@ -780,7 +822,36 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  std::string   cmd(args[0]);
+  std::string cmd(args[0]);
+
+  if (cmd == "git-test") {
+#if 0
+    Repository repo;
+
+    GitCommit commit;
+
+    commit.update('foo/bar/baz.c', repo.create_blob("#include <stdio.h>\n", 19));
+    commit.author_name  = 'John Wiegley';
+    commit.author_email = 'johnw@boostpro.com';
+    commit.author_date  = '2005-04-07T22:13:13';
+    commit.comment      = "This is a sample commit.\n";
+
+    GitBranch branch('feature', commit);
+
+    commit = commit.fork();      // makes a new commit based on the old one
+    commit.remove('foo/bar/baz.c');
+    commit.author_name  = 'John Wiegley';
+    commit.author_email = 'johnw@boostpro.com';
+    commit.author_date  = '2005-04-10T22:13:13';
+    commit.comment      = "This removes the previous file.\n";
+
+    GitBranch master('master', commit);
+
+    git('symbolic-ref', 'HEAD', 'refs/heads/%s' % branch.name);
+#endif
+    return 0;
+  }
+
   SvnDump::File dump(args[1]);
 
   if (cmd == "print") {
@@ -804,30 +875,6 @@ int main(int argc, char *argv[])
     }
     if (opts.verbose)
       status.finish();
-  }
-  else if (cmd == "git-test") {
-#if 0
-    GitCommit commit;
-
-    commit.update('foo/bar/baz.c', GitBlob('#include <stdio.h>\n'));
-    commit.author_name  = 'John Wiegley';
-    commit.author_email = 'johnw@boostpro.com';
-    commit.author_date  = '2005-04-07T22:13:13';
-    commit.comment      = "This is a sample commit.\n";
-
-    GitBranch branch('feature', commit);
-
-    commit = commit.fork();      // makes a new commit based on the old one
-    commit.remove('foo/bar/baz.c');
-    commit.author_name  = 'John Wiegley';
-    commit.author_email = 'johnw@boostpro.com';
-    commit.author_date  = '2005-04-10T22:13:13';
-    commit.comment      = "This removes the previous file.\n";
-
-    GitBranch master('master', commit);
-
-    git('symbolic-ref', 'HEAD', 'refs/heads/%s' % branch.name);
-#endif
   }
 
   return 0;
