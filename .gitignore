@@ -3,3 +3,6 @@
 /boost-svn.dump
 /boost.svnrepo.dump
 /branches.txt
+/*.o
+/*.dSYM/
+/subconvert
