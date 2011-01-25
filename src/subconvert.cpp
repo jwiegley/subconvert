@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -14,13 +16,10 @@
 #include <boost/filesystem/path.hpp>
 #include <boost/optional.hpp>
 
-#define HAVE_OPENSSL_MD5  (1)
-#define HAVE_OPENSSL_SHA1 (1)
-
-#ifdef HAVE_OPENSSL_MD5
+#ifdef HAVE_OPENSSL_MD5_H
 #include <openssl/md5.h>
 #endif
-#ifdef HAVE_OPENSSL_SHA1
+#ifdef HAVE_OPENSSL_SHA_H
 #include <openssl/sha.h>
 #endif
 
@@ -417,6 +416,7 @@ namespace SvnDump
 
           handle->read(curr_node.text, text_content_length);
 
+#ifdef HAVE_LIBCRYPTO
           if (verify) {
             git_oid oid;
             char checksum[41];
@@ -433,7 +433,7 @@ namespace SvnDump
                            oid.id[12], oid.id[13], oid.id[14], oid.id[15]);
               assert(curr_node.get_text_md5() == checksum);
             }
-#endif
+#endif // HAVE_OPENSSL_MD5
 #ifdef HAVE_OPENSSL_SHA1
             if (curr_node.has_sha1()) {
               SHA1(reinterpret_cast<const unsigned char *>(curr_node.get_text()),
@@ -442,8 +442,9 @@ namespace SvnDump
               checksum[40] = '\0';
               assert(curr_node.get_text_sha1() == checksum);
             }
-#endif
+#endif // HAVE_OPENSSL_SHA1
           }
+#endif // HAVE_LIBCRYPTO
         }
 
         if (curr_rev == -1 || curr_node.curr_txn == -1)

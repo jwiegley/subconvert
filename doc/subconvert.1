@@ -1,0 +1,37 @@
+.Dd January 25, 2011
+.Dt subconvert 1
+.Sh NAME
+.Nm subconvert
+.Nd Faithfully convert Subversion repositories to Git
+.Sh SYNOPSIS
+subconvert
+.Op Ar options
+.Ar command
+.Ar dumpfile
+.Sh DESCRIPTION
+Subconvert is a tool for converting every bit of Git-representable information
+from Subversion a dump file into a Git repository.
+.Pp
+.Sh COMMANDS
+subconvert accepts several top-level commands:
+.Pp
+.Bl -tag -width authors
+.It Nm branches
+.It Nm convert
+.It Nm scan
+This command simply verifies the readability of the dump file.  Typically used
+in conjunction with the
+.Fl \-verify
+option, which verifies any checksum on data containing within the dump.
+.It Nm print
+.El
+.Pp
+.Sh OPTIONS
+.Pp
+.Sh SEE ALSO
+.Xr git-svn 1
+.Sh AUTHORS
+.An "John Wiegley"
+.Aq johnw@boostpro.com
+.\" .Sh BUGS              \" Document known, unremedied bugs
+.\" .Sh HISTORY           \" Document history if command behaves in a unique manner
