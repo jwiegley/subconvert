@@ -135,13 +135,13 @@ namespace SvnDump
       bool has_md5() const {
         return md5_checksum;
       }
-      int get_text_md5() const {
+      std::string get_text_md5() const {
         return *md5_checksum;
       }
       bool has_sha1() const {
         return sha1_checksum;
       }
-      int get_text_sha1() const {
+      std::string get_text_sha1() const {
         return *sha1_checksum;
       }
 #endif
@@ -313,9 +313,9 @@ namespace SvnDump
                 text_content_length = boost::lexical_cast<int>(p + 2);
 #ifdef USE_CHECKSUMS
               else if (property == "Text-content-md5")
-                ;               // jww (2011-01-24): NYI
+                curr_node.md5_checksum = p + 2;
               else if (property == "Text-content-sha1")
-                ;               // jww (2011-01-24): NYI
+                curr_node.sha1_checksum = p + 2;
 #endif
               break;
             }
