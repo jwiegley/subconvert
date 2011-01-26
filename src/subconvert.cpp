@@ -42,6 +42,8 @@
 #include "config.h"
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/checked_delete.hpp>
+#include <boost/intrusive_ptr.hpp>
 #include <boost/optional.hpp>
 
 #define BOOST_FILESYSTEM_VERSION 3
@@ -68,24 +70,268 @@
 
 namespace Git
 {
-  class Tree
+  class Repository;
+
+  class Object
   {
-    git_tree * tree;
+    friend class Repository;
+
+  protected:
+    git_object * git_obj;
+    Repository * repository;
+
+    mutable int refc;
+
+    void acquire() const {
+      assert(refc >= 0);
+      refc++;
+    }
+    void release() const {
+      assert(refc > 0);
+      if (--refc == 0)
+        boost::checked_delete(this);
+    }
 
   public:
-    Tree(git_tree * _tree) : tree(_tree) {}
+    std::string name;
+    int         attributes;
+
+    Object(git_object * _git_obj, const std::string& _name, int _attributes)
+      : git_obj(_git_obj), refc(0), name(_name), attributes(_attributes) {}
+    ~Object() {
+      assert(refc == 0);
+    }
+
+    operator const git_oid *() const {
+      return git_object_id(git_obj);
+    }
+
+    virtual bool is_tree() const {
+      return false;
+    }
+
+    friend inline void intrusive_ptr_add_ref(Object * obj) {
+      obj->acquire();
+    }
+    friend inline void intrusive_ptr_release(Object * obj) {
+      obj->release();
+    }
   };
 
-  class Commit
+  typedef boost::intrusive_ptr<Object> ObjectPtr;
+
+  class Blob : public Object
+  {
+  public:
+    Blob(git_blob * blob, const std::string& name, int attributes = 0100644)
+      : Object(reinterpret_cast<git_object *>(blob), name, attributes) {}
+
+    operator git_blob *() const {
+      return reinterpret_cast<git_blob *>(git_obj);
+    }
+  };
+
+  typedef boost::intrusive_ptr<Blob> BlobPtr;
+
+  class Tree : public Object
+  {
+  protected:
+    typedef std::map<std::string, ObjectPtr>  entries_map;
+    typedef std::pair<std::string, ObjectPtr> entries_pair;
+
+    entries_map entries;
+
+    ObjectPtr do_lookup(boost::filesystem::path::iterator segment,
+                        boost::filesystem::path::iterator end) {
+      std::string name = (*segment).string();
+
+      entries_map::iterator i = entries.find(name);
+      if (i == entries.end())
+        return NULL;
+
+      ObjectPtr result;
+      if (++segment == end) {
+        result = (*i).second;
+        assert(result->name == name);
+      } else {
+        result = dynamic_cast<Tree *>((*i).second.get())->do_lookup(segment, end);
+      }
+      return result;
+    }
+
+    void do_update(boost::filesystem::path::iterator segment,
+                   boost::filesystem::path::iterator end, ObjectPtr obj);
+
+    void do_remove(boost::filesystem::path::iterator segment,
+                   boost::filesystem::path::iterator end) {
+      std::string name = (*segment).string();
+
+      entries_map::iterator i = entries.find(name);
+      // It's OK for remove not to find what it's looking for, because it
+      // may be that Subversion wishes to remove an empty directory, which
+      // would never have been added in the first place.
+      if (i != entries.end()) {
+        if (++segment == end)
+          entries.erase(i);
+        else
+          dynamic_cast<Tree *>((*i).second.get())->do_remove(segment, end);
+      }
+    }
+
+  public:
+    Tree(git_tree * tree, const std::string& name, int attributes = 0040000)
+      : Object(reinterpret_cast<git_object *>(tree), name, attributes) {}
+
+    operator git_tree *() const {
+      return reinterpret_cast<git_tree *>(git_obj);
+    }
+
+    virtual bool is_tree() const {
+      return true;
+    }
+
+    ObjectPtr lookup(const boost::filesystem::path& pathname) {
+      return do_lookup(pathname.begin(), pathname.end());
+    }
+
+    void update(const boost::filesystem::path& pathname, ObjectPtr obj) {
+      do_update(pathname.begin(), pathname.end(), obj);
+    }
+
+    void remove(const boost::filesystem::path& pathname) {
+      do_remove(pathname.begin(), pathname.end());
+    }
+  };
+
+  typedef boost::intrusive_ptr<Tree> TreePtr;
+
+  class Commit;
+  typedef boost::intrusive_ptr<Commit> CommitPtr;
+
+  class Commit : public Object
   {
     git_commit * commit;
 
+    std::list<CommitPtr>    parents;
+    TreePtr                 tree;
+    std::string             author_name;
+    std::string             author_email;
+    std::time_t             author_date;
+    std::string             comment;
+    boost::filesystem::path prefix;
+
+    ObjectPtr lookup(const boost::filesystem::path& pathname) {
+      return tree.get() ? tree->lookup(pathname) : tree;
+    }
+
+#if 0
+    def update(self, path, obj):
+        log.debug('commit.update: ' + path)
+        self.sha1   = None
+        self.posted = None
+        if not self.tree:
+            self.tree = GitTree(path.split('/')[0])
+        self.tree.update(path, obj)
+
+    def remove(self, path):
+        log.debug('commit.remove: ' + path)
+        self.sha1   = None
+        self.posted = None
+        if self.tree:
+            self.tree.remove(path)
+
+    def post(self, q):
+        if self.posted: return
+        map(lambda x: x.post(q), self.parents)
+        if self.tree:
+            if self.prefix:
+                tree = self.tree.lookup(self.prefix)
+            else:
+                tree = self.tree
+            if tree:
+                assert isinstance(tree, GitTree)
+                tree.post(q)
+        q.enqueue(self)
+        self.posted = True
+
+    def write(self):
+        if self.sha1: return
+
+        if self.prefix:
+            tree = self.tree.lookup(self.prefix)
+        else:
+            tree = self.tree
+
+        if not tree:
+            tree = GitTree(self.prefix) # create an empty tree
+            tree.write()
+
+        if not tree.sha1:
+            raise GitError('Commit tree has no SHA1: %s' % self.dump_str())
+
+        if self.prefix:
+            log.debug('committing tree %s (prefix %s)' % (tree.name, self.prefix))
+        else:
+            log.debug('committing tree %s' % tree.name)
+
+        args = ['commit-tree', tree.sha1]
+        for parent in self.parents:
+            args.append('-p')
+            assert parent.sha1
+            args.append(parent.sha1)
+
+        self.sha1 = git(*args, input = self.comment,
+                         author_name     = self.author_name,
+                         author_email    = self.author_email,
+                         author_date     = self.author_date,
+                         committer_name  = self.committer_name  or self.author_name,
+                         committer_email = self.committer_email or self.author_email,
+                         committer_date  = self.committer_date  or self.author_date)
+        assert self.sha1
+
+        self.author_name     = None
+        self.author_email    = None
+        self.author_date     = None
+        self.committer_name  = None
+        self.committer_email = None
+        self.committer_date  = None
+        self.comment         = None
+
+        return True
+#endif
+
   public:
-    Commit(git_commit * _commit) : commit(_commit) {}
+    Commit(git_commit * commit,
+           const std::string& name = "", int attributes = 0040000)
+      : Object(reinterpret_cast<git_object *>(commit), name, attributes),
+        author_date(0) {}
+
+    operator git_commit *() const {
+      return reinterpret_cast<git_commit *>(git_obj);
+    }
   };
 
   class Branch
   {
+#if 0
+class GitBranch(object):
+    name      = None
+    prefix    = ''
+    prefix_re = None
+    commit    = None
+    kind      = 'branch'
+    final_rev = 0
+    posted    = False
+
+    def __init__(self, name='master', commit=None):
+        self.name   = name
+        self.commit = commit
+
+    def write(self):
+        assert self.commit.sha1
+        git('update-ref', 'refs/heads/%s' % self.name, self.commit.sha1)
+        return True
+#endif
   };
 
   class Repository
@@ -102,34 +348,67 @@ namespace Git
       git_repository_free(repo);
     }
 
-    const git_oid * create_blob(const char * data, std::size_t len) {
-      git_blob *blob;
-      if (git_blob_new(&blob, repo) != 0)
+    BlobPtr create_blob(const std::string& name,
+                        const char * data, std::size_t len,
+                        int attributes = 0100644) {
+      git_blob * git_blob;
+
+      if (git_blob_new(&git_blob, repo) != 0)
         throw std::logic_error("Could not create Git blob");
 
-      if (git_blob_set_rawcontent(blob, data, len) != 0)
+      if (git_blob_set_rawcontent(git_blob, data, len) != 0)
         throw std::logic_error("Could not set Git blob contents");
 
-      if (git_object_write(reinterpret_cast<git_object *>(blob)) != 0)
+      if (git_object_write(reinterpret_cast<git_object *>(git_blob)) != 0)
         throw std::logic_error("Could not write Git blob");
 
-      return git_object_id(reinterpret_cast<git_object *>(blob));
+      Blob * blob = new Blob(git_blob, name, attributes);
+      blob->repository = this;
+      return blob;
     }
 
-    git_tree * create_tree() {
-      git_tree * tree;
-      if (git_tree_new(&tree, repo) != 0)
+    TreePtr create_tree(const std::string& name, int attributes = 040000) {
+      git_tree * git_tree;
+      if (git_tree_new(&git_tree, repo) != 0)
         throw std::logic_error("Could not create Git tree");
+
+      Tree * tree = new Tree(git_tree, name, attributes);
+      tree->repository = this;
       return tree;
     }
 
-    git_commit * create_commit() {
-      git_commit * commit;
-      if (git_commit_new(&commit, repo) != 0)
+    CommitPtr create_commit() {
+      git_commit * git_commit;
+      if (git_commit_new(&git_commit, repo) != 0)
         throw std::logic_error("Could not create Git commit");
+
+      Commit * commit = new Commit(git_commit);
+      commit->repository = this;
       return commit;
     }
   };
+
+  void Tree::do_update(boost::filesystem::path::iterator segment,
+                       boost::filesystem::path::iterator end, ObjectPtr obj) {
+    std::string name = (*segment).string();
+    assert(name == obj->name);
+
+    entries_map::iterator i = entries.find(name);
+    if (++segment == end) {
+      if (i == entries.end())
+        entries.insert(entries_pair(name, obj));
+      else
+        (*i).second = obj;
+    } else {
+      TreePtr tree;
+      if (i == entries.end())
+        tree = repository->create_tree(name);
+      else
+        tree = dynamic_cast<Tree *>((*i).second.get());
+
+      tree->do_update(segment, end, obj);
+    }
+  }
 }
 
 namespace SvnDump
@@ -789,6 +1068,187 @@ void invoke_scanner(SvnDump::File&     dump,
   finder.report(std::cout);
 }
 
+struct ConvertRepository
+{
+#if 0
+    def current_commit(self, dump, path, copy_from=None):
+        current_branch = None
+
+        for branch in self.branches:
+            if branch.prefix_re.match(path):
+                assert not current_branch
+                current_branch = branch
+                if not self.options.verify:
+                    break
+
+        if not current_branch:
+            current_branch = self.default_branch
+
+        if not current_branch.commit:
+            # If the first action is a dir/add/copyfrom, then this will get
+            # set correctly, otherwise it's a parentless branch, which is also
+            # completely OK.
+            commit = current_branch.commit = \
+                copy_from.fork() if copy_from else GitCommit()
+            self.log.info('Found new branch %s' % current_branch.name)
+        else:
+            commit = current_branch.commit.fork()
+            current_branch.commit = commit
+
+        # This copy is done to avoid each commit having to link back to its
+        # parent branch
+        commit.prefix = current_branch.prefix
+
+        # Setup the author and commit comment
+        author = dump.get_rev_author()
+        if author in self.authors:
+            author = self.authors[author]
+            commit.author_name  = author[0]
+            commit.author_email = author[1]
+        else:
+            commit.author_name  = author
+
+        commit.author_date = re.sub('\..*', '', dump.get_rev_date_str())
+        log                = dump.get_rev_log().rstrip(' \t\n\r')
+        commit.comment     = log + '\n\nSVN-Revision: %d' % dump.get_rev_nr()
+
+        return commit
+
+    def setup_conversion(self):
+        self.authors = {}
+        if self.options.authors_file:
+            for row in csv.reader(open(self.options.authors_file),
+                                  delimiter='\t'):
+                self.authors[row[0]] = \
+                    (row[1], re.sub('~', '.', re.sub('<>', '@', row[2])))
+
+        self.branches = []
+        if self.options.branches_file:
+            for row in csv.reader(open(self.options.branches_file),
+                                  delimiter='\t'):
+                branch = GitBranch(row[2])
+                branch.kind      = row[0]
+                branch.final_rev = int(row[1])
+                branch.prefix    = row[2]
+                branch.prefix_re = re.compile(re.escape(branch.prefix) + '(/|$)')
+                self.branches.append(branch)
+
+        self.last_rev       = 0
+        self.rev_mapping    = {}
+        self.commit         = None
+        self.default_branch = GitBranch('master')
+
+    def convert_repository(self, worker):
+        activity    = False
+        status      = StatusDisplay('Converting', self.options.dry_run,
+                                    self.options.debug, self.options.verbose)
+
+        for dump, txn, node in revision_iterator(self.options.dump_file):
+            rev = dump.get_rev_nr()
+            if rev != self.last_rev:
+                if self.options.cutoff_rev and rev > self.options.cutoff_rev:
+                    self.log.info("Terminated at nearest cutoff revision %d%s" %
+                                  (rev, ' ' * 20))
+                    break
+
+                status.update(worker, rev)
+
+                if self.commit:
+                    self.rev_mapping[self.last_rev] = self.commit
+
+                    # If no activity was seen in the previous revision, don't
+                    # build a commit and just reuse the preceding commit
+                    # object (if there is one yet)
+                    if activity:
+                        if not self.options.dry_run:
+                            self.commit.post(worker)
+                        self.commit = None
+
+                # Skip revisions we've already processed from a state file
+                # that was cut short using --cutoff
+                if rev < self.last_rev:
+                    continue
+                else:
+                    self.last_rev = rev
+
+            path = node.get_path()
+            if not path: continue
+
+            kind   = node.get_kind()   # file|dir
+            action = node.get_action() # add|change|delete|replace
+
+            if kind == 'file' and action in ('add', 'change'):
+                if node.has_text():
+                    text   = node.text_open()
+                    length = node.get_text_length()
+                    data   = node.text_read(text, length)
+                    assert len(data) == length
+                    node.text_close(text)
+                    del text
+
+                    if self.options.verify and node.has_md5():
+                        md5 = hashlib.md5()
+                        md5.update(data)
+                        assert node.get_text_md5() == md5.hexdigest()
+                        del md5
+                else:
+                    data = ''   # an empty file
+
+                if not self.commit:
+                    self.commit = self.current_commit(dump, path)
+                self.commit.update(path, GitBlob(os.path.basename(path), data))
+                del data
+
+                activity = True
+
+            elif action == 'delete':
+                if not self.commit:
+                    self.commit = self.current_commit(dump, path)
+                self.commit.remove(path)
+                activity = True
+
+            elif (kind == 'dir' and action in 'add') and node.has_copy_from():
+                from_rev = node.get_copy_from_rev()
+                while from_rev > 0 and from_rev not in self.rev_mapping:
+                    from_rev -= 1
+                assert from_rev
+
+                past_commit = self.rev_mapping[from_rev]
+                if not self.commit:
+                    assert past_commit
+                    self.commit = self.current_commit(dump, path,
+                                                      copy_from=past_commit)
+
+                log.debug("dir add, copy from: " + node.get_copy_from_path())
+                log.debug("dir add, copy to:   " + path)
+
+                tree = past_commit.lookup(node.get_copy_from_path())
+                if tree:
+                    tree = copy.copy(tree)
+                    tree.name = os.path.basename(path)
+
+                    # If this tree hasn't been written yet (the SHA1 would be
+                    # the exact same), make sure our copy gets written on its
+                    # own terms to avoid a dependency ordering snafu
+                    if not tree.sha1:
+                        tree.posted = False
+
+                    self.commit.update(path, tree)
+                    activity = True
+                else:
+                    activity = False
+
+        if not self.options.dry_run:
+            for branch in self.branches + [self.default_branch]:
+                if branch.commit:
+                    branch.post(worker)
+
+            worker.finish(status)
+
+        status.finish()
+#endif
+};
+
 int main(int argc, char *argv[])
 {
   std::ios::sync_with_stdio(false);
@@ -832,24 +1292,24 @@ int main(int argc, char *argv[])
 
     GitCommit commit;
 
-    commit.update('foo/bar/baz.c', repo.create_blob("#include <stdio.h>\n", 19));
-    commit.author_name  = 'John Wiegley';
-    commit.author_email = 'johnw@boostpro.com';
-    commit.author_date  = '2005-04-07T22:13:13';
+    commit.update("foo/bar/baz.c", Blob("baz.c", "#include <stdio.h>\n", 19));
+    commit.author_name  = "John Wiegley";
+    commit.author_email = "johnw@boostpro.com";
+    commit.author_date  = "2005-04-07T22:13:13";
     commit.comment      = "This is a sample commit.\n";
 
-    GitBranch branch('feature', commit);
+    GitBranch branch("feature", commit);
 
     commit = commit.fork();      // makes a new commit based on the old one
-    commit.remove('foo/bar/baz.c');
-    commit.author_name  = 'John Wiegley';
-    commit.author_email = 'johnw@boostpro.com';
-    commit.author_date  = '2005-04-10T22:13:13';
+    commit.remove("foo/bar/baz.c");
+    commit.author_name  = "John Wiegley";
+    commit.author_email = "johnw@boostpro.com";
+    commit.author_date  = "2005-04-10T22:13:13";
     commit.comment      = "This removes the previous file.\n";
 
-    GitBranch master('master', commit);
+    GitBranch master("master", commit);
 
-    git('symbolic-ref', 'HEAD', 'refs/heads/%s' % branch.name);
+    git("symbolic-ref", "HEAD", "refs/heads/%s" % branch.name);
 #endif
     return 0;
   }
