@@ -543,14 +543,14 @@ namespace SvnDump
   }
 }
 
-struct GlobalOptions
+struct Options
 {
   bool verify;
   bool verbose;
   int  debug;
 
-  GlobalOptions() : verify(false), verbose(false), debug(0) {}
-} opts;
+  Options() : verify(false), verbose(false), debug(0) {}
+};
 
 class StatusDisplay
 {
@@ -795,6 +795,8 @@ int main(int argc, char *argv[])
 
   // Examine any option settings made by the user.  -f is the only
   // required one.
+
+  Options opts;
 
   std::vector<std::string> args;
 
