@@ -58,8 +58,8 @@ namespace Git
     friend class Repository;
 
   protected:
-    git_object * git_obj;
     Repository * repository;
+    git_object * git_obj;
 
     mutable int refc;
 
@@ -78,9 +78,10 @@ namespace Git
     int              attributes;
     git_tree_entry * tree_entry;
 
-    Object(git_object * _git_obj, const std::string& _name, int _attributes)
-      : git_obj(_git_obj), refc(0), name(_name), attributes(_attributes),
-        tree_entry(NULL) {}
+    Object(Repository * _repository, git_object * _git_obj,
+           const std::string& _name, int _attributes)
+      : repository(_repository), git_obj(_git_obj), refc(0),
+        name(_name), attributes(_attributes), tree_entry(NULL) {}
     ~Object() {
       assert(refc == 0);
     }
@@ -125,8 +126,10 @@ namespace Git
   class Blob : public Object
   {
   public:
-    Blob(git_blob * blob, const std::string& name, int attributes = 0100644)
-      : Object(reinterpret_cast<git_object *>(blob), name, attributes) {}
+    Blob(Repository * repository, git_blob * blob,
+         const std::string& name, int attributes = 0100644)
+      : Object(repository, reinterpret_cast<git_object *>(blob),
+               name, attributes) {}
 
     operator git_blob *() const {
       return reinterpret_cast<git_blob *>(git_obj);
@@ -173,8 +176,10 @@ namespace Git
                    boost::filesystem::path::iterator end);
 
   public:
-    Tree(git_tree * tree, const std::string& name, int attributes = 0040000)
-      : Object(reinterpret_cast<git_object *>(tree), name, attributes),
+    Tree(Repository * repository, git_tree * tree,
+         const std::string& name, int attributes = 0040000)
+      : Object(repository, reinterpret_cast<git_object *>(tree),
+               name, attributes),
         written(false), modified(false), sort_needed(false) {}
 
     operator git_tree *() const {
@@ -225,9 +230,10 @@ namespace Git
     boost::filesystem::path prefix;
 
   public:
-    Commit(git_commit * commit,
+    Commit(Repository * repo, git_commit * commit,
            const std::string& name = "", int attributes = 0040000)
-      : Object(reinterpret_cast<git_object *>(commit), name, attributes) {}
+      : Object(repo, reinterpret_cast<git_object *>(commit),
+               name, attributes) {}
 
     operator git_commit *() const {
       return reinterpret_cast<git_commit *>(git_obj);
@@ -245,6 +251,10 @@ namespace Git
     void add_parent(CommitPtr parent) {
       if (git_commit_add_parent(*this, *parent))
         throw std::logic_error("Could not add parent to commit");
+    }
+
+    std::string get_message() const {
+      return git_commit_message(*this);
     }
 
     void set_message(const std::string& message) {
@@ -312,6 +322,10 @@ namespace Git
       git_repository_free(repo);
     }
 
+    operator git_repository *() const {
+      return repo;
+    }
+
     BlobPtr create_blob(const std::string& name,
                         const char * data, std::size_t len,
                         int attributes = 0100644) {
@@ -326,7 +340,7 @@ namespace Git
       if (git_object_write(reinterpret_cast<git_object *>(git_blob)) != 0)
         throw std::logic_error("Could not write Git blob");
 
-      Blob * blob = new Blob(git_blob, name, attributes);
+      Blob * blob = new Blob(this, git_blob, name, attributes);
       blob->repository = this;
       return blob;
     }
@@ -336,7 +350,7 @@ namespace Git
       if (git_tree_new(&git_tree, repo) != 0)
         throw std::logic_error("Could not create Git tree");
 
-      Tree * tree = new Tree(git_tree, name, attributes);
+      Tree * tree = new Tree(this, git_tree, name, attributes);
       tree->repository = this;
       return tree;
     }
@@ -345,10 +359,55 @@ namespace Git
       git_commit * git_commit;
       if (git_commit_new(&git_commit, repo) != 0)
         throw std::logic_error("Could not create Git commit");
+      return new Commit(this, git_commit);
+    }
 
-      Commit * commit = new Commit(git_commit);
-      commit->repository = this;
-      return commit;
+    CommitPtr read_commit(const git_oid * oid);
+
+    struct commit_iterator {
+      typedef CommitPtr value_type;
+
+      CommitPtr                      commit;
+      Repository *                   repo;
+      boost::shared_ptr<git_revwalk> walk;
+
+      commit_iterator() : commit(NULL), repo(NULL) {}
+      ~commit_iterator() {}
+
+      bool operator==(const commit_iterator& other) const {
+        return commit == other.commit;
+      }
+      bool operator!=(const commit_iterator& other) const {
+        return ! (*this == other);
+      }
+
+      CommitPtr operator *() {
+        return commit;
+      }
+      void operator++() {
+        git_commit * git_commit = git_revwalk_next(walk.get());
+        commit = new Commit(repo, git_commit);
+      }
+      commit_iterator& operator++(int) {
+        ++(*this);
+        return *this;
+      }
+    };
+
+    commit_iterator commits_begin() {
+      commit_iterator start;
+      git_revwalk *   walk;
+
+      if (git_revwalk_new(&walk, repo) != 0)
+        throw std::logic_error("Could not create repository revision walker");
+
+      start.repo = this;
+      start.walk = boost::shared_ptr<git_revwalk>(walk, git_revwalk_free);
+
+      return start;
+    }
+    commit_iterator commits_end() {
+      return commit_iterator();
     }
 
     void create_file(const boost::filesystem::path& pathname,

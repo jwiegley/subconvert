@@ -428,6 +428,7 @@ struct ConvertRepository
     std::string author_id(dump.get_rev_author());
     authors_map::iterator i = authors.find(author_id);
     if (i != authors.end())
+      // jww (2011-01-27): What about timezones?
       commit->set_author((*i).second.name, (*i).second.email,
                          dump.get_rev_date());
     else
@@ -507,8 +508,23 @@ struct ConvertRepository
              node.has_copy_from()) {
       int from_rev = node.get_copy_from_rev();
 
-      // jww (2011-01-27): NYI: Load the rev mapping directly from the
-      // Git commits in the repository, if necessary
+      if (rev_mapping.empty()) {
+        for (Git::Repository::commit_iterator i = repository.commits_begin();
+             i != repository.commits_end();
+             ++i) {
+          std::string message = (*i)->get_message();
+
+          std::string::size_type offset = message.find("SVN-Revision: ");
+          if (offset == std::string::npos)
+            throw std::logic_error("Cannot work with a repository"
+                                   " not created by subconvert");
+          offset += 14;
+
+          rev_mapping.insert(revs_value(std::atoi(message.c_str() + offset),
+                                        (*i)->get_oid()));
+        }
+      }
+
       revs_map::iterator i;
       while (from_rev > 0) {
         i = rev_mapping.find(from_rev);
@@ -519,9 +535,7 @@ struct ConvertRepository
       }
       assert(i != rev_mapping.end());
 
-      // jww (2011-01-27): NYI: Load the object data from the Git
-      // repository
-      Git::CommitPtr past_commit; // = (*i).second;
+      Git::CommitPtr past_commit = repository.read_commit((*i).second);
       if (! commit) {
         assert(past_commit);
         commit = current_commit(dump, pathname, past_commit);
@@ -622,7 +636,6 @@ int main(int argc, char *argv[])
                    repo.create_blob("baz.c", "#include <stdio.h>\n", 19));
     commit->update("foo/bar/bar.c",
                    repo.create_blob("bar.c", "#include <stdlib.h>\n", 20));
-    // jww (2011-01-27): What about timezones?
     commit->set_author("John Wiegley", "johnw@boostpro.com", std::mktime(&then));
     commit->set_message("This is a sample commit.\n");
 

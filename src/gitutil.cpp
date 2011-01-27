@@ -210,6 +210,20 @@ namespace Git
                            commit->sha1());
   }
 
+  CommitPtr Repository::read_commit(const git_oid * oid)
+  {
+    git_commit * git_commit;
+    
+    if (git_commit_lookup(&git_commit, *this, oid) != 0)
+      throw std::logic_error("Could not find Git commit");
+
+    CommitPtr commit = new Commit(this, git_commit);
+
+    // jww (2011-01-27): NYI: Load tree data from the Git repository for
+    // this commit.
+    return commit;
+  }
+
   void Repository::create_file(const boost::filesystem::path& pathname,
                                const std::string& content)
   {
