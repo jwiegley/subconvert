@@ -2,8 +2,7 @@ dist_man_MANS	= doc/subconvert.1
 EXTRA_DIST	= autogen.sh
 DISTCLEANFILES	= .timestamp
 
-#pkginclude_HEADERS =				\
-#	src/gitutil.h
+pkginclude_HEADERS = src/svndump.h src/gitutil.h
 
 ######################################################################
 
@@ -15,6 +14,6 @@ subconvert_CXXFLAGS = -ansi -pedantic -pedantic-errors -Wall -Winvalid-pch	\
 		      -Woverloaded-virtual -Wsign-compare -Wsign-promo		\
 		      -Wwrite-strings -Wno-old-style-cast -Wno-deprecated	\
 	              -Wno-strict-aliasing -Werror
-subconvert_SOURCES  = src/subconvert.cpp
+subconvert_SOURCES  = src/subconvert.cpp src/svndump.cpp src/gitutil.cpp
 
 # Makefile.am ends here
