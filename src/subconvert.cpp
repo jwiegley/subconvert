@@ -95,15 +95,24 @@ namespace Git
   public:
     std::string name;
     int         attributes;
+    bool        written;
 
     Object(git_object * _git_obj, const std::string& _name, int _attributes)
-      : git_obj(_git_obj), refc(0), name(_name), attributes(_attributes) {}
+      : git_obj(_git_obj), refc(0), name(_name),
+        attributes(_attributes), written(false) {}
     ~Object() {
       assert(refc == 0);
     }
 
     operator const git_oid *() const {
       return git_object_id(git_obj);
+    }
+
+    std::string sha1() const {
+      char checksum[41];
+      git_oid_fmt(checksum, *this);
+      checksum[40] = '\0';
+      return checksum;
     }
 
     virtual bool is_tree() const {
@@ -124,7 +133,9 @@ namespace Git
   {
   public:
     Blob(git_blob * blob, const std::string& name, int attributes = 0100644)
-      : Object(reinterpret_cast<git_object *>(blob), name, attributes) {}
+      : Object(reinterpret_cast<git_object *>(blob), name, attributes) {
+      written = true;
+    }
 
     operator git_blob *() const {
       return reinterpret_cast<git_blob *>(git_obj);
@@ -201,6 +212,14 @@ namespace Git
     void remove(const boost::filesystem::path& pathname) {
       do_remove(pathname.begin(), pathname.end());
     }
+
+    void write() {
+      if (written) return;
+
+      // jww (2011-01-26): NYI
+
+      written = true;
+    }
   };
 
   typedef boost::intrusive_ptr<Tree> TreePtr;
@@ -210,8 +229,6 @@ namespace Git
 
   class Commit : public Object
   {
-    git_commit * commit;
-
     std::list<CommitPtr>    parents;
     TreePtr                 tree;
     std::string             author_name;
@@ -221,84 +238,18 @@ namespace Git
     boost::filesystem::path prefix;
 
     ObjectPtr lookup(const boost::filesystem::path& pathname) {
-      return tree.get() ? tree->lookup(pathname) : tree;
+      return tree ? tree->lookup(pathname) : tree;
     }
 
-#if 0
-    def update(self, path, obj):
-        log.debug('commit.update: ' + path)
-        self.sha1   = None
-        self.posted = None
-        if not self.tree:
-            self.tree = GitTree(path.split('/')[0])
-        self.tree.update(path, obj)
+    void update(const boost::filesystem::path& pathname, ObjectPtr obj);
 
-    def remove(self, path):
-        log.debug('commit.remove: ' + path)
-        self.sha1   = None
-        self.posted = None
-        if self.tree:
-            self.tree.remove(path)
+    void remove(const boost::filesystem::path& pathname) {
+      written = false;
+      if (tree)
+        tree->remove(pathname);
+    }
 
-    def post(self, q):
-        if self.posted: return
-        map(lambda x: x.post(q), self.parents)
-        if self.tree:
-            if self.prefix:
-                tree = self.tree.lookup(self.prefix)
-            else:
-                tree = self.tree
-            if tree:
-                assert isinstance(tree, GitTree)
-                tree.post(q)
-        q.enqueue(self)
-        self.posted = True
-
-    def write(self):
-        if self.sha1: return
-
-        if self.prefix:
-            tree = self.tree.lookup(self.prefix)
-        else:
-            tree = self.tree
-
-        if not tree:
-            tree = GitTree(self.prefix) # create an empty tree
-            tree.write()
-
-        if not tree.sha1:
-            raise GitError('Commit tree has no SHA1: %s' % self.dump_str())
-
-        if self.prefix:
-            log.debug('committing tree %s (prefix %s)' % (tree.name, self.prefix))
-        else:
-            log.debug('committing tree %s' % tree.name)
-
-        args = ['commit-tree', tree.sha1]
-        for parent in self.parents:
-            args.append('-p')
-            assert parent.sha1
-            args.append(parent.sha1)
-
-        self.sha1 = git(*args, input = self.comment,
-                         author_name     = self.author_name,
-                         author_email    = self.author_email,
-                         author_date     = self.author_date,
-                         committer_name  = self.committer_name  or self.author_name,
-                         committer_email = self.committer_email or self.author_email,
-                         committer_date  = self.committer_date  or self.author_date)
-        assert self.sha1
-
-        self.author_name     = None
-        self.author_email    = None
-        self.author_date     = None
-        self.committer_name  = None
-        self.committer_email = None
-        self.committer_date  = None
-        self.comment         = None
-
-        return True
-#endif
+    void write();
 
   public:
     Commit(git_commit * commit,
@@ -313,25 +264,51 @@ namespace Git
 
   class Branch
   {
-#if 0
-class GitBranch(object):
-    name      = None
-    prefix    = ''
-    prefix_re = None
-    commit    = None
-    kind      = 'branch'
-    final_rev = 0
-    posted    = False
+    std::string             name;
+    boost::filesystem::path prefix;
+    //prefix_re = None
+    bool                    is_tag;
+    int                     final_rev;
 
-    def __init__(self, name='master', commit=None):
-        self.name   = name
-        self.commit = commit
+  public:
+    Branch(const std::string& _name = "master")
+      : name(_name), is_tag(false), final_rev(0) {}
 
-    def write(self):
-        assert self.commit.sha1
-        git('update-ref', 'refs/heads/%s' % self.name, self.commit.sha1)
-        return True
-#endif
+    void update(CommitPtr commit) {
+      boost::filesystem::path dir(boost::filesystem::current_path());
+      boost::filesystem::path ref(boost::filesystem::path(".git")
+                                  / "refs" / "heads" / commit->name);
+      boost::filesystem::path parent(ref.parent_path());
+
+      // Make sure the directory exists for the ref file
+
+      for (boost::filesystem::path::iterator i = parent.begin();
+           i != parent.end();
+           ++i) {
+        dir /= *i;
+        if (! boost::filesystem::is_directory(dir)) {
+          boost::filesystem::create_directory(dir);
+          if (! boost::filesystem::is_directory(dir))
+            throw std::logic_error(std::string("Directory ") + dir.string() +
+                                   " does not exist and could not be created");
+        }
+      }
+
+      // Make sure where we want to write isn't a directory or something
+
+      boost::filesystem::path file = boost::filesystem::current_path() / ref;
+
+      if (boost::filesystem::exists(file) &&
+          ! boost::filesystem::is_regular_file(file))
+        throw std::logic_error(file.string() +
+                               " already exists but is not a regular file");
+
+      // Open the ref file, creating it if it doesn't already exist
+
+      boost::filesystem::ofstream out(file);
+      out << commit->sha1();
+      out.close();
+    }
   };
 
   class Repository
@@ -367,7 +344,7 @@ class GitBranch(object):
       return blob;
     }
 
-    TreePtr create_tree(const std::string& name, int attributes = 040000) {
+    TreePtr create_tree(const std::string& name = "", int attributes = 040000) {
       git_tree * git_tree;
       if (git_tree_new(&git_tree, repo) != 0)
         throw std::logic_error("Could not create Git tree");
@@ -408,6 +385,39 @@ class GitBranch(object):
 
       tree->do_update(segment, end, obj);
     }
+  }
+
+  void Commit::update(const boost::filesystem::path& pathname, ObjectPtr obj) {
+    written = false;
+    if (! tree)
+      tree = repository->create_tree((*pathname.begin()).string());
+    tree->update(pathname, obj);
+  }
+
+  void Commit::write() {
+    if (written) return;
+
+    assert(tree);
+
+    TreePtr subtree;
+    if (prefix.empty()) {
+      subtree = tree;
+    } else {
+      ObjectPtr obj = tree->lookup(prefix);
+      assert(obj->is_tree());
+      tree = dynamic_cast<Tree *>(obj.get());
+    }
+
+    if (! subtree) {
+      subtree = tree = repository->create_tree();
+      tree->write();
+    }
+
+    assert(tree->written);
+
+    // jww (2011-01-26): NYI
+
+    written = true;
   }
 }
 
