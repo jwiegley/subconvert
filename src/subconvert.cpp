@@ -35,14 +35,17 @@
 
 #include <iostream>
 #include <sstream>
+#include <vector>
 
 struct Options
 {
-  bool verify;
   bool verbose;
   int  debug;
+  bool verify;
+  bool dry_run;
 
-  Options() : verify(false), verbose(false), debug(0) {}
+  Options() : verbose(false), debug(0),
+              verify(false), dry_run(false) {}
 };
 
 class StatusDisplay
@@ -50,22 +53,21 @@ class StatusDisplay
   std::ostream& out;
   std::string   verb;
   int           last_rev;
-  bool          dry_run;
-  bool          debug;
-  bool          verbose;
+  Options       opts;
 
 public:
   StatusDisplay(std::ostream&      _out,
-                const std::string& _verb     = "Scanning",
-                int                _last_rev = -1,
-                bool               _dry_run  = false,
-                bool               _debug    = false,
-                bool               _verbose  = false) :
-    out(_out), verb(_verb), last_rev(_last_rev), dry_run(_dry_run),
-    debug(_debug), verbose(_verbose) {}
+                const Options&     _opts = Options(),
+                const std::string& _verb = "Scanning") :
+    out(_out), verb(_verb), last_rev(-1), opts(_opts) {}
 
   void set_last_rev(int _last_rev = -1) {
     last_rev = _last_rev;
+  }
+
+  void info(const std::string& message) {
+    if (opts.verbose || opts.debug)
+      out << message << std::endl;
   }
 
   void update(const int rev = -1) const {
@@ -80,11 +82,11 @@ public:
     } else {
       out << ", done.";
     }
-    out << ((! debug && ! verbose) ? '\r' : '\n');
+    out << ((! opts.debug && ! opts.verbose) ? '\r' : '\n');
   }
 
   void finish() const {
-    if (! verbose && ! debug)
+    if (! opts.verbose && ! opts.debug)
       out << '\n';
   }
 };
@@ -118,7 +120,7 @@ struct FindAuthors
     }
   }
 
-  void report(std::ostream& out) const {
+  void report(std::ostream& out) {
     status.finish();
 
     for (authors_map::const_iterator i = authors.begin();
@@ -207,7 +209,7 @@ struct FindBranches
     }
   }
 
-  void report(std::ostream& out) const {
+  void report(std::ostream& out) {
     status.finish();
 
     for (branches_map::const_iterator i = branches.begin();
@@ -230,7 +232,6 @@ struct PrintDumpFile
   PrintDumpFile(StatusDisplay&) {}
 
   void operator()(const SvnDump::File&       dump,
-
                   const SvnDump::File::Node& node)
   {
     { std::ostringstream buf;
@@ -265,14 +266,294 @@ struct PrintDumpFile
     std::cout << '\n';
   }
 
-  void report(std::ostream&) const {}
+  void report(std::ostream&) {}
+};
+
+struct ConvertRepository
+{
+  struct AuthorInfo {
+    std::string name;
+    std::string email;
+  };
+
+  typedef std::map<std::string, AuthorInfo> authors_map;
+  typedef authors_map::value_type           authors_value;
+
+  typedef std::vector<Git::Branch>          branches_vector;
+
+  typedef std::map<int, const git_oid*>     revs_map;
+  typedef revs_map::value_type              revs_value;
+
+  Git::Repository& repository;
+  authors_map      authors;
+  branches_vector  branches;
+  int              last_rev;
+  bool             activity;
+  revs_map         rev_mapping;
+  Git::CommitPtr   commit;
+  Git::Branch      default_branch;
+  StatusDisplay&   status;
+  Options          opts;
+
+  ConvertRepository(Git::Repository& _repository, StatusDisplay& _status,
+                    const Options& _opts = Options())
+    : repository(_repository), last_rev(0), activity(false),
+      commit(NULL), status(_status), opts(_opts) {}
+
+  void load_authors(const boost::filesystem::path& pathname) {
+    authors.clear();
+
+    static const int MAX_LINE = 8192;
+    char linebuf[MAX_LINE + 1];
+
+    boost::filesystem::ifstream in(pathname);
+
+    while (in.good() && ! in.eof()) {
+      in.getline(linebuf, MAX_LINE);
+
+      int         field = 0;
+      std::string author_id;
+      AuthorInfo  author;
+      for (const char * p = std::strtok(linebuf, "\t"); p;
+           p = std::strtok(NULL, "\t")) {
+        switch (field) {
+        case 0:
+          author_id = p;
+          break;
+        case 1:
+          author.name = p;
+          break;
+        case 2: {
+          char buf[256];
+          char * s = buf;
+          for (const char * q = p; *q; ++q, ++s) {
+            if (*q == '<' && *(q + 1) == '>') {
+              *s = '@';
+              ++q;
+            }
+            else if (*q == '~') {
+              *s = '.';
+            }
+            else {
+              *s = *q;
+            }
+          }
+          *s = '\0';
+          author.email = buf;
+          break;
+        }
+        }
+        field++;
+      }
+
+      authors.insert(authors_value(author_id, author));
+    }
+  }
+
+  void load_branches(const boost::filesystem::path& pathname) {
+    branches.clear();
+
+    static const int MAX_LINE = 8192;
+    char linebuf[MAX_LINE + 1];
+
+    boost::filesystem::ifstream in(pathname);
+
+    while (in.good() && ! in.eof()) {
+      in.getline(linebuf, MAX_LINE);
+
+      int         field = 0;
+      bool        is_tag = false;
+      Git::Branch branch;
+      for (const char * p = std::strtok(linebuf, "\t"); p;
+           p = std::strtok(NULL, "\t")) {
+        switch (field) {
+        case 0:
+          if (*p == 't')
+            is_tag = true;
+          break;
+        case 1: break;
+        case 2: break;
+        case 3:
+          branch.prefix = p;
+          break;
+        case 4:
+          branch.name = p;
+          break;
+        }
+        field++;
+      }
+
+      branches.push_back(branch);
+    }
+  }
+
+  Git::CommitPtr
+  current_commit(const SvnDump::File&           dump,
+                 const boost::filesystem::path& pathname,
+                 Git::CommitPtr                 copy_from = NULL) {
+    Git::Branch * current_branch = NULL;
+
+    for (branches_vector::iterator i = branches.begin();
+         i != branches.end();
+         ++i) {
+      if (boost::starts_with(pathname.string(), (*i).prefix.string()))
+        if (const std::string::size_type branch_prefix_len =
+            (*i).prefix.string().length())
+          if (pathname.string().length() == branch_prefix_len ||
+              pathname.string()[branch_prefix_len] == '/') {
+            assert(current_branch == NULL);
+            current_branch = &(*i);
+          }
+    }
+    if (! current_branch)
+      current_branch = &default_branch;
+
+    if (! current_branch->commit) {
+      // If the first action is a dir/add/copyfrom, then this will get
+      // set correctly, otherwise it's a parentless branch, which is
+      // also OK.
+      assert(copy_from);
+
+      commit = copy_from ? copy_from->clone() : repository.create_commit();
+      commit->set_prefix(current_branch->prefix);
+
+      status.info(std::string("Found new branch ") + current_branch->name);
+    } else {
+      commit = current_branch->commit->clone();
+      commit->set_prefix(current_branch->prefix);
+    }
+    current_branch->commit = commit; // don't update just yet
+
+    // Setup the author and commit comment
+    std::string author_id(dump.get_rev_author());
+    authors_map::iterator i = authors.find(author_id);
+    if (i != authors.end())
+      commit->set_author((*i).second.name, (*i).second.email,
+                         dump.get_rev_date());
+    else
+      commit->set_author(author_id, "", dump.get_rev_date());
+
+    boost::optional<std::string> log(dump.get_rev_log());
+    int len = 0;
+    if (log) {
+      len = log->length();
+      while ((*log)[len - 1] == ' '  || (*log)[len - 1] == '\t' ||
+             (*log)[len - 1] == '\n' || (*log)[len - 1] == '\r')
+        --len;
+    }
+
+    std::ostringstream buf;
+    if (log) {
+      buf << std::string(*log, 0, len) << '\n'
+          << '\n';
+    } else {
+      buf << "SVN-Revision: " << dump.get_rev_nr();
+    }
+             
+    commit->set_message(buf.str());
+
+    return commit;
+  }
+
+  void operator()(const SvnDump::File&       dump,
+                  const SvnDump::File::Node& node) {
+    const int rev = dump.get_rev_nr();
+    if (rev != last_rev) {
+      status.update(rev);
+
+      if (commit) {
+        rev_mapping.insert(revs_value(last_rev, commit->get_oid()));
+
+        // If no activity was seen in the previous revision, don't build
+        // a commit and just reuse the preceding commit object (if there
+        // is one yet)
+        if (activity) {
+          if (! opts.dry_run)
+            commit->write();
+          commit = NULL;
+        }
+      }
+      activity = false;
+    }
+
+    boost::filesystem::path pathname(node.get_path());
+    if (pathname.empty())
+      return;
+
+    SvnDump::File::Node::Kind   kind   = node.get_kind();
+    SvnDump::File::Node::Action action = node.get_action();
+
+    if (kind == SvnDump::File::Node::KIND_FILE &&
+        (action == SvnDump::File::Node::ACTION_ADD ||
+         action == SvnDump::File::Node::ACTION_CHANGE)) {
+      std::string data(node.has_text() ? node.get_text() : "");
+
+      if (! commit)
+        commit = current_commit(dump, pathname);
+      commit->update(pathname,
+                     repository.create_blob(pathname.filename().string(),
+                                            data.c_str(),
+                                            node.get_text_length()));
+      activity = true;
+    }
+    else if (action == SvnDump::File::Node::ACTION_DELETE) {
+      if (! commit)
+        commit = current_commit(dump, pathname);
+      commit->remove(pathname);
+      activity = true;
+    }
+    else if (kind   == SvnDump::File::Node::KIND_DIR   &&
+             action == SvnDump::File::Node::ACTION_ADD &&
+             node.has_copy_from()) {
+      int from_rev = node.get_copy_from_rev();
+
+      // jww (2011-01-27): NYI: Load the rev mapping directly from the
+      // Git commits in the repository, if necessary
+      revs_map::iterator i;
+      while (from_rev > 0) {
+        i = rev_mapping.find(from_rev);
+        if (i == rev_mapping.end())
+          --from_rev;
+        else
+          break;
+      }
+      assert(i != rev_mapping.end());
+
+      // jww (2011-01-27): NYI: Load the object data from the Git
+      // repository
+      Git::CommitPtr past_commit; // = (*i).second;
+      if (! commit) {
+        assert(past_commit);
+        commit = current_commit(dump, pathname, past_commit);
+      }
+
+      if (Git::ObjectPtr tree =
+          past_commit->lookup(node.get_copy_from_path())) {
+        tree->name = pathname.filename().string();
+        commit->update(pathname, tree);
+        activity = true;
+      } else {
+        activity = false;
+      }
+    }
+  }
+
+  void report(std::ostream&) {
+    if (! opts.dry_run) {
+      for (branches_vector::iterator i = branches.begin();
+           i != branches.end();
+           ++i)
+        (*i).update(repository, (*i).commit);
+      default_branch.update(repository, default_branch.commit);
+    }
+    status.finish();
+  }
 };
 
 template <typename T>
-void invoke_scanner(SvnDump::File&     dump,
-                    const std::string& verb = "Reading revisions")
+void invoke_scanner(SvnDump::File& dump)
 {
-  StatusDisplay status(std::cerr, verb);
+  StatusDisplay status(std::cerr);
   T finder(status);
 
   while (dump.read_next(/* ignore_text= */ true)) {
@@ -281,187 +562,6 @@ void invoke_scanner(SvnDump::File&     dump,
   }
   finder.report(std::cout);
 }
-
-struct ConvertRepository
-{
-#if 0
-    def current_commit(self, dump, path, copy_from=None):
-        current_branch = None
-
-        for branch in self.branches:
-            if branch.prefix_re.match(path):
-                assert not current_branch
-                current_branch = branch
-                if not self.options.verify:
-                    break
-
-        if not current_branch:
-            current_branch = self.default_branch
-
-        if not current_branch.commit:
-            # If the first action is a dir/add/copyfrom, then this will get
-            # set correctly, otherwise it's a parentless branch, which is also
-            # completely OK.
-            commit = current_branch.commit = \
-                copy_from.fork() if copy_from else GitCommit()
-            self.log.info('Found new branch %s' % current_branch.name)
-        else:
-            commit = current_branch.commit.fork()
-            current_branch.commit = commit
-
-        # This copy is done to avoid each commit having to link back to its
-        # parent branch
-        commit.prefix = current_branch.prefix
-
-        # Setup the author and commit comment
-        author = dump.get_rev_author()
-        if author in self.authors:
-            author = self.authors[author]
-            commit.author_name  = author[0]
-            commit.author_email = author[1]
-        else:
-            commit.author_name  = author
-
-        commit.author_date = re.sub('\..*', '', dump.get_rev_date_str())
-        log                = dump.get_rev_log().rstrip(' \t\n\r')
-        commit.comment     = log + '\n\nSVN-Revision: %d' % dump.get_rev_nr()
-
-        return commit
-
-    def setup_conversion(self):
-        self.authors = {}
-        if self.options.authors_file:
-            for row in csv.reader(open(self.options.authors_file),
-                                  delimiter='\t'):
-                self.authors[row[0]] = \
-                    (row[1], re.sub('~', '.', re.sub('<>', '@', row[2])))
-
-        self.branches = []
-        if self.options.branches_file:
-            for row in csv.reader(open(self.options.branches_file),
-                                  delimiter='\t'):
-                branch = GitBranch(row[2])
-                branch.kind      = row[0]
-                branch.final_rev = int(row[1])
-                branch.prefix    = row[2]
-                branch.prefix_re = re.compile(re.escape(branch.prefix) + '(/|$)')
-                self.branches.append(branch)
-
-        self.last_rev       = 0
-        self.rev_mapping    = {}
-        self.commit         = None
-        self.default_branch = GitBranch('master')
-
-    def convert_repository(self, worker):
-        activity    = False
-        status      = StatusDisplay('Converting', self.options.dry_run,
-                                    self.options.debug, self.options.verbose)
-
-        for dump, txn, node in revision_iterator(self.options.dump_file):
-            rev = dump.get_rev_nr()
-            if rev != self.last_rev:
-                if self.options.cutoff_rev and rev > self.options.cutoff_rev:
-                    self.log.info("Terminated at nearest cutoff revision %d%s" %
-                                  (rev, ' ' * 20))
-                    break
-
-                status.update(worker, rev)
-
-                if self.commit:
-                    self.rev_mapping[self.last_rev] = self.commit
-
-                    # If no activity was seen in the previous revision, don't
-                    # build a commit and just reuse the preceding commit
-                    # object (if there is one yet)
-                    if activity:
-                        if not self.options.dry_run:
-                            self.commit.post(worker)
-                        self.commit = None
-
-                # Skip revisions we've already processed from a state file
-                # that was cut short using --cutoff
-                if rev < self.last_rev:
-                    continue
-                else:
-                    self.last_rev = rev
-
-            path = node.get_path()
-            if not path: continue
-
-            kind   = node.get_kind()   # file|dir
-            action = node.get_action() # add|change|delete|replace
-
-            if kind == 'file' and action in ('add', 'change'):
-                if node.has_text():
-                    text   = node.text_open()
-                    length = node.get_text_length()
-                    data   = node.text_read(text, length)
-                    assert len(data) == length
-                    node.text_close(text)
-                    del text
-
-                    if self.options.verify and node.has_md5():
-                        md5 = hashlib.md5()
-                        md5.update(data)
-                        assert node.get_text_md5() == md5.hexdigest()
-                        del md5
-                else:
-                    data = ''   # an empty file
-
-                if not self.commit:
-                    self.commit = self.current_commit(dump, path)
-                self.commit.update(path, GitBlob(os.path.basename(path), data))
-                del data
-
-                activity = True
-
-            elif action == 'delete':
-                if not self.commit:
-                    self.commit = self.current_commit(dump, path)
-                self.commit.remove(path)
-                activity = True
-
-            elif (kind == 'dir' and action in 'add') and node.has_copy_from():
-                from_rev = node.get_copy_from_rev()
-                while from_rev > 0 and from_rev not in self.rev_mapping:
-                    from_rev -= 1
-                assert from_rev
-
-                past_commit = self.rev_mapping[from_rev]
-                if not self.commit:
-                    assert past_commit
-                    self.commit = self.current_commit(dump, path,
-                                                      copy_from=past_commit)
-
-                log.debug("dir add, copy from: " + node.get_copy_from_path())
-                log.debug("dir add, copy to:   " + path)
-
-                tree = past_commit.lookup(node.get_copy_from_path())
-                if tree:
-                    tree = copy.copy(tree)
-                    tree.name = os.path.basename(path)
-
-                    # If this tree hasn't been written yet (the SHA1 would be
-                    # the exact same), make sure our copy gets written on its
-                    # own terms to avoid a dependency ordering snafu
-                    if not tree.sha1:
-                        tree.posted = False
-
-                    self.commit.update(path, tree)
-                    activity = True
-                else:
-                    activity = False
-
-        if not self.options.dry_run:
-            for branch in self.branches + [self.default_branch]:
-                if branch.commit:
-                    branch.post(worker)
-
-            worker.finish(status)
-
-        status.finish()
-#endif
-};
 
 int main(int argc, char *argv[])
 {
@@ -479,7 +579,15 @@ int main(int argc, char *argv[])
       if (argv[i][1] == '-') {
         if (std::strcmp(&argv[i][2], "verify") == 0)
           opts.verify = true;
+        else if (std::strcmp(&argv[i][2], "verbose") == 0)
+          opts.verbose = true;
+        else if (std::strcmp(&argv[i][2], "debug") == 0)
+          opts.debug = 1;
+        else if (std::strcmp(&argv[i][2], "dry-run") == 0)
+          opts.dry_run = true;
       }
+      else if (std::strcmp(&argv[i][1], "n") == 0)
+        opts.dry_run = true;
       else if (std::strcmp(&argv[i][1], "v") == 0)
         opts.verbose = true;
       else if (std::strcmp(&argv[i][1], "d") == 0)
@@ -549,9 +657,18 @@ int main(int argc, char *argv[])
     invoke_scanner<FindBranches>(dump);
   }
   else if (cmd == "convert") {
+    Git::Repository   repo(args[2]);
+    StatusDisplay     status(std::cerr, opts, "Converting");
+    ConvertRepository converter(repo, status, opts);
+
+    while (dump.read_next()) {
+      status.set_last_rev(dump.get_last_rev_nr());
+      converter(dump, dump.get_curr_node());
+    }
+    converter.report(std::cout);
   }
   else if (cmd == "scan") {
-    StatusDisplay status(std::cerr);
+    StatusDisplay status(std::cerr, opts);
     while (dump.read_next(/* ignore_text= */ !opts.verify,
                           /* verify=      */ opts.verify)) {
       status.set_last_rev(dump.get_last_rev_nr());

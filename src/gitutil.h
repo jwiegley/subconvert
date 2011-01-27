@@ -92,6 +92,10 @@ namespace Git
       return git_object_id(git_obj);
     }
 
+    const git_oid * get_oid() const {
+      return git_object_id(git_obj);
+    }
+
     std::string sha1() const {
       char checksum[41];
       git_oid_fmt(checksum, *this);
@@ -256,7 +260,11 @@ namespace Git
 
       git_commit_set_author(*this, signature);
       git_commit_set_committer(*this, signature);
-  }
+    }
+
+    void set_prefix(const boost::filesystem::path& _prefix) {
+      prefix = _prefix;
+    }
 
     ObjectPtr lookup(const boost::filesystem::path& pathname) {
       return tree ? tree->lookup(pathname) : tree;
@@ -274,15 +282,15 @@ namespace Git
 
   class Branch
   {
+  public:
     std::string             name;
     boost::filesystem::path prefix;
-    //prefix_re = None
     bool                    is_tag;
-    int                     final_rev;
+    CommitPtr               commit;
+    //int                     final_rev;
 
-  public:
     Branch(const std::string& _name = "master")
-      : name(_name), is_tag(false), final_rev(0) {}
+      : name(_name), is_tag(false), commit(NULL) /* , final_rev(0) */ {}
 
     void update(Repository& repository, CommitPtr commit);
   };

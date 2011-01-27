@@ -202,8 +202,9 @@ namespace Git
       throw std::logic_error("Could not write out Git commit");
   }
 
-  void Branch::update(Repository& repository, CommitPtr commit)
+  void Branch::update(Repository& repository, CommitPtr _commit)
   {
+    commit = _commit;
     commit->write();
     repository.create_file(boost::filesystem::path("refs") / "heads" / name,
                            commit->sha1());
