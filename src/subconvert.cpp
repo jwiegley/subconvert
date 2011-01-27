@@ -93,17 +93,20 @@ namespace Git
     }
 
   public:
-    std::string name;
-    int         attributes;
-    bool        written;
+    std::string      name;
+    int              attributes;
+    git_tree_entry * tree_entry;
 
     Object(git_object * _git_obj, const std::string& _name, int _attributes)
-      : git_obj(_git_obj), refc(0), name(_name),
-        attributes(_attributes), written(false) {}
+      : git_obj(_git_obj), refc(0), name(_name), attributes(_attributes),
+        tree_entry(NULL) {}
     ~Object() {
       assert(refc == 0);
     }
 
+    operator git_object *() {
+      return git_obj;
+    }
     operator const git_oid *() const {
       return git_object_id(git_obj);
     }
@@ -115,9 +118,14 @@ namespace Git
       return checksum;
     }
 
+    virtual bool is_blob() const {
+      return true;
+    }
     virtual bool is_tree() const {
       return false;
     }
+
+    virtual void write() = 0;
 
     friend inline void intrusive_ptr_add_ref(Object * obj) {
       obj->acquire();
@@ -133,13 +141,13 @@ namespace Git
   {
   public:
     Blob(git_blob * blob, const std::string& name, int attributes = 0100644)
-      : Object(reinterpret_cast<git_object *>(blob), name, attributes) {
-      written = true;
-    }
+      : Object(reinterpret_cast<git_object *>(blob), name, attributes) {}
 
     operator git_blob *() const {
       return reinterpret_cast<git_blob *>(git_obj);
     }
+
+    virtual void write() {}
   };
 
   typedef boost::intrusive_ptr<Blob> BlobPtr;
@@ -151,6 +159,9 @@ namespace Git
     typedef std::pair<std::string, ObjectPtr> entries_pair;
 
     entries_map entries;
+    bool        written;
+    bool        modified;
+    bool        sort_needed;
 
     ObjectPtr do_lookup(boost::filesystem::path::iterator segment,
                         boost::filesystem::path::iterator end) {
@@ -174,31 +185,27 @@ namespace Git
                    boost::filesystem::path::iterator end, ObjectPtr obj);
 
     void do_remove(boost::filesystem::path::iterator segment,
-                   boost::filesystem::path::iterator end) {
-      std::string name = (*segment).string();
-
-      entries_map::iterator i = entries.find(name);
-      // It's OK for remove not to find what it's looking for, because it
-      // may be that Subversion wishes to remove an empty directory, which
-      // would never have been added in the first place.
-      if (i != entries.end()) {
-        if (++segment == end)
-          entries.erase(i);
-        else
-          dynamic_cast<Tree *>((*i).second.get())->do_remove(segment, end);
-      }
-    }
+                   boost::filesystem::path::iterator end);
 
   public:
     Tree(git_tree * tree, const std::string& name, int attributes = 0040000)
-      : Object(reinterpret_cast<git_object *>(tree), name, attributes) {}
+      : Object(reinterpret_cast<git_object *>(tree), name, attributes),
+        written(false), modified(false), sort_needed(false) {}
 
     operator git_tree *() const {
       return reinterpret_cast<git_tree *>(git_obj);
     }
 
+    virtual bool is_blob() const {
+      return false;
+    }
     virtual bool is_tree() const {
       return true;
+    }
+
+    bool empty() const {
+      assert(! entries.empty() || git_tree_entrycount(*this) == 0);
+      return entries.empty();
     }
 
     ObjectPtr lookup(const boost::filesystem::path& pathname) {
@@ -213,13 +220,13 @@ namespace Git
       do_remove(pathname.begin(), pathname.end());
     }
 
-    void write() {
-      if (written) return;
-
-      // jww (2011-01-26): NYI
-
-      written = true;
+    void clear() {
+      while (git_tree_entrycount(*this) > 0)
+        if (git_tree_remove_entry_byindex(*this, 0) != 0)
+          throw std::logic_error("Could not remove entry from tree");
     }
+
+    virtual void write();
   };
 
   typedef boost::intrusive_ptr<Tree> TreePtr;
@@ -229,13 +236,46 @@ namespace Git
 
   class Commit : public Object
   {
-    std::list<CommitPtr>    parents;
     TreePtr                 tree;
-    std::string             author_name;
-    std::string             author_email;
-    std::time_t             author_date;
-    std::string             comment;
     boost::filesystem::path prefix;
+
+  public:
+    Commit(git_commit * commit,
+           const std::string& name = "", int attributes = 0040000)
+      : Object(reinterpret_cast<git_object *>(commit), name, attributes) {}
+
+    operator git_commit *() const {
+      return reinterpret_cast<git_commit *>(git_obj);
+    }
+
+    virtual bool is_blob() const {
+      return false;
+    }
+    virtual bool is_tree() const {
+      return false;
+    }
+
+    CommitPtr clone();
+
+    void add_parent(CommitPtr parent) {
+      if (git_commit_add_parent(*this, *parent))
+        throw std::logic_error("Could not add parent to commit");
+    }
+
+    void set_message(const std::string& message) {
+      git_commit_set_message(*this, message.c_str());
+    }
+
+    void set_author(const std::string& name, const std::string& email,
+                    time_t time) {
+      git_signature * signature =
+        git_signature_new(name.c_str(), email.c_str(), time, 0);
+      if (! signature)
+        throw std::logic_error("Could not create signature object");
+
+      git_commit_set_author(*this, signature);
+      git_commit_set_committer(*this, signature);
+  }
 
     ObjectPtr lookup(const boost::filesystem::path& pathname) {
       return tree ? tree->lookup(pathname) : tree;
@@ -244,22 +284,11 @@ namespace Git
     void update(const boost::filesystem::path& pathname, ObjectPtr obj);
 
     void remove(const boost::filesystem::path& pathname) {
-      written = false;
       if (tree)
         tree->remove(pathname);
     }
 
-    void write();
-
-  public:
-    Commit(git_commit * commit,
-           const std::string& name = "", int attributes = 0040000)
-      : Object(reinterpret_cast<git_object *>(commit), name, attributes),
-        author_date(0) {}
-
-    operator git_commit *() const {
-      return reinterpret_cast<git_commit *>(git_obj);
-    }
+    virtual void write();
   };
 
   class Branch
@@ -274,41 +303,7 @@ namespace Git
     Branch(const std::string& _name = "master")
       : name(_name), is_tag(false), final_rev(0) {}
 
-    void update(CommitPtr commit) {
-      boost::filesystem::path dir(boost::filesystem::current_path());
-      boost::filesystem::path ref(boost::filesystem::path(".git")
-                                  / "refs" / "heads" / commit->name);
-      boost::filesystem::path parent(ref.parent_path());
-
-      // Make sure the directory exists for the ref file
-
-      for (boost::filesystem::path::iterator i = parent.begin();
-           i != parent.end();
-           ++i) {
-        dir /= *i;
-        if (! boost::filesystem::is_directory(dir)) {
-          boost::filesystem::create_directory(dir);
-          if (! boost::filesystem::is_directory(dir))
-            throw std::logic_error(std::string("Directory ") + dir.string() +
-                                   " does not exist and could not be created");
-        }
-      }
-
-      // Make sure where we want to write isn't a directory or something
-
-      boost::filesystem::path file = boost::filesystem::current_path() / ref;
-
-      if (boost::filesystem::exists(file) &&
-          ! boost::filesystem::is_regular_file(file))
-        throw std::logic_error(file.string() +
-                               " already exists but is not a regular file");
-
-      // Open the ref file, creating it if it doesn't already exist
-
-      boost::filesystem::ofstream out(file);
-      out << commit->sha1();
-      out.close();
-    }
+    void update(Repository& repository, CommitPtr commit);
   };
 
   class Repository
@@ -318,8 +313,11 @@ namespace Git
   public:
     Repository(const boost::filesystem::path& pathname) {
       if (git_repository_open(&repo, pathname.string().c_str()) != 0)
-        throw std::logic_error(std::string("Could not open Git repository: ") +
-                               pathname.string());
+        if (git_repository_open(&repo,
+                                (pathname / ".git").string().c_str()) != 0)
+          throw std::logic_error(std::string("Could not open repository: ") +
+                                 pathname.string() + " or " +
+                                 (pathname / ".git").string());
     }
     ~Repository() {
       git_repository_free(repo);
@@ -363,40 +361,186 @@ namespace Git
       commit->repository = this;
       return commit;
     }
+
+    void create_file(const boost::filesystem::path& pathname,
+                     const std::string& content = "") {
+      boost::filesystem::path dir(boost::filesystem::current_path());
+      boost::filesystem::path file(boost::filesystem::path(".git") / pathname);
+      boost::filesystem::path parent(file.parent_path());
+
+      // Make sure the directory exists for the file
+
+      for (boost::filesystem::path::iterator i = parent.begin();
+           i != parent.end();
+           ++i) {
+        dir /= *i;
+        if (! boost::filesystem::is_directory(dir)) {
+          boost::filesystem::create_directory(dir);
+          if (! boost::filesystem::is_directory(dir))
+            throw std::logic_error(std::string("Directory ") + dir.string() +
+                                   " does not exist and could not be created");
+        }
+      }
+
+      // Make sure where we want to write isn't a directory or something
+
+      file = boost::filesystem::current_path() / file;
+
+      if (boost::filesystem::exists(file) &&
+          ! boost::filesystem::is_regular_file(file))
+        throw std::logic_error(file.string() +
+                               " already exists but is not a regular file");
+
+      // Open the file, creating it if it doesn't already exist
+
+      boost::filesystem::ofstream out(file);
+      out << content;
+      out.close();
+    }
   };
 
   void Tree::do_update(boost::filesystem::path::iterator segment,
-                       boost::filesystem::path::iterator end, ObjectPtr obj) {
+                       boost::filesystem::path::iterator end, ObjectPtr obj)
+  {
     std::string name = (*segment).string();
-    assert(name == obj->name);
+
+    modified = true;
 
     entries_map::iterator i = entries.find(name);
     if (++segment == end) {
-      if (i == entries.end())
+      assert(name == obj->name);
+
+      if (i == entries.end()) {
+        written = false;        // force the whole tree to be rewritten
         entries.insert(entries_pair(name, obj));
-      else
-        (*i).second = obj;
+      } else {
+        // If the object we're updating is just a blob, the tree doesn't
+        // need to be regnerated entirely, it will just get updated by
+        // git_object_write.
+        if (obj->is_blob()) {
+          ObjectPtr curr_obj = (*i).second;
+          git_tree_entry_set_id(curr_obj->tree_entry, *obj);
+          git_tree_entry_set_attributes(curr_obj->tree_entry, obj->attributes);
+          if (name != obj->name) {
+            sort_needed = true;
+            entries.erase(i);
+            entries.insert(entries_pair(obj->name, obj));
+            git_tree_entry_set_name(curr_obj->tree_entry, obj->name.c_str());
+          } else {
+            (*i).second = obj;
+          }
+          obj->tree_entry = curr_obj->tree_entry;
+        } else {
+          written = false;      // force the whole tree to be rewritten
+          (*i).second = obj;
+        }
+      }
     } else {
       TreePtr tree;
-      if (i == entries.end())
+      if (i == entries.end()) {
         tree = repository->create_tree(name);
-      else
+        entries.insert(entries_pair(name, tree));
+      } else {
         tree = dynamic_cast<Tree *>((*i).second.get());
+      }
 
       tree->do_update(segment, end, obj);
+
+      written = false;          // force the whole tree to be rewritten
     }
   }
 
-  void Commit::update(const boost::filesystem::path& pathname, ObjectPtr obj) {
-    written = false;
+  void Tree::do_remove(boost::filesystem::path::iterator segment,
+                       boost::filesystem::path::iterator end)
+  {
+    std::string name = (*segment).string();
+
+    modified = true;
+
+    entries_map::iterator i = entries.find(name);
+    // It's OK for remove not to find what it's looking for, because it
+    // may be that Subversion wishes to remove an empty directory, which
+    // would never have been added in the first place.
+    if (i != entries.end()) {
+      if (++segment == end) {
+        entries.erase(i);
+        std::cerr << "Removing leaf entry " << name << std::endl;
+        if (git_tree_remove_entry_byname(*this, name.c_str()) != 0)
+          throw std::logic_error("Could not remove entry from tree");
+      } else {
+        TreePtr subtree = dynamic_cast<Tree *>((*i).second.get());
+        subtree->do_remove(segment, end);
+        if (subtree->empty()) {
+          entries.erase(i);
+          std::cerr << "Removing branch entry " << name << std::endl;
+          if (git_tree_remove_entry_byname(*this, name.c_str()) != 0)
+            throw std::logic_error("Could not remove entry from tree");
+        } else {
+          written = false;      // force the whole tree to be rewritten
+        }
+      }
+    }
+  }
+
+  void Tree::write()
+  {
+    if (empty()) return;
+
+    if (written) {
+      if (modified) {
+        if (sort_needed)
+          git_tree_sort_entries(*this);
+        if (git_object_write(*this) != 0)
+          throw std::logic_error("Could not write tree object");
+        std::cerr << "Rewrote tree to " << sha1() << std::endl;
+      }
+    } else {
+      // written may be false now because of a change which requires us
+      // to rewrite the entire tree.  To be on the safe side, just clear
+      // out any existing entries in the git tree, and rewrite the
+      // entries known to the Tree object.
+      clear();
+
+      for (entries_map::const_iterator i = entries.begin();
+           i != entries.end();
+           ++i) {
+        ObjectPtr obj((*i).second);
+        if (! obj->is_blob())
+          obj->write();
+        std::cerr << "Adding entry: " << obj->name << std::endl;
+        if (git_tree_add_entry2(&obj->tree_entry, *this, *obj,
+                                obj->name.c_str(), obj->attributes) != 0)
+          throw std::logic_error("Could not add entry to tree");
+      }
+      git_tree_sort_entries(*this);
+      if (git_object_write(*this) != 0)
+        throw std::logic_error("Could not write tree object");
+      std::cerr << "Wrote tree to " << sha1() << std::endl;
+    }
+    written  = true;
+    modified = false;
+  }
+
+  void Commit::update(const boost::filesystem::path& pathname, ObjectPtr obj)
+  {
     if (! tree)
       tree = repository->create_tree((*pathname.begin()).string());
     tree->update(pathname, obj);
   }
 
-  void Commit::write() {
-    if (written) return;
+  CommitPtr Commit::clone()
+  {
+    CommitPtr new_commit = repository->create_commit();
 
+    new_commit->tree   = tree;
+    new_commit->prefix = prefix;
+    new_commit->add_parent(this);
+
+    return new_commit;
+  }
+
+  void Commit::write()
+  {
     assert(tree);
 
     TreePtr subtree;
@@ -405,19 +549,26 @@ namespace Git
     } else {
       ObjectPtr obj = tree->lookup(prefix);
       assert(obj->is_tree());
-      tree = dynamic_cast<Tree *>(obj.get());
+      subtree = dynamic_cast<Tree *>(obj.get());
     }
-
-    if (! subtree) {
+    if (! subtree)
       subtree = tree = repository->create_tree();
-      tree->write();
-    }
 
-    assert(tree->written);
+    assert(! subtree->empty());
+    subtree->write();
+    std::cerr << "Wrote subtree " << subtree->sha1() << std::endl;
 
-    // jww (2011-01-26): NYI
+    git_commit_set_tree(*this, *subtree);
 
-    written = true;
+    if (git_object_write(*this) != 0)
+      throw std::logic_error("Could not write out Git commit");
+  }
+
+  void Branch::update(Repository& repository, CommitPtr commit)
+  {
+    commit->write();
+    repository.create_file(boost::filesystem::path("refs") / "heads" / name,
+                           commit->sha1());
   }
 }
 
@@ -1297,30 +1448,39 @@ int main(int argc, char *argv[])
   std::string cmd(args[0]);
 
   if (cmd == "git-test") {
-#if 0
-    Repository repo;
+    Git::Repository repo(args[1]);
 
-    GitCommit commit;
+    std::cerr << "Creating initial commit..." << std::endl;
+    Git::CommitPtr commit = repo.create_commit();
 
-    commit.update("foo/bar/baz.c", Blob("baz.c", "#include <stdio.h>\n", 19));
-    commit.author_name  = "John Wiegley";
-    commit.author_email = "johnw@boostpro.com";
-    commit.author_date  = "2005-04-07T22:13:13";
-    commit.comment      = "This is a sample commit.\n";
+    struct tm then;
+    strptime("2005-04-07T22:13:13", "%Y-%m-%dT%H:%M:%S", &then);
 
-    GitBranch branch("feature", commit);
+    std::cerr << "Adding blob to commit..." << std::endl;
+    commit->update("foo/bar/baz.c",
+                   repo.create_blob("baz.c", "#include <stdio.h>\n", 19));
+    commit->update("foo/bar/bar.c",
+                   repo.create_blob("bar.c", "#include <stdlib.h>\n", 20));
+    // jww (2011-01-27): What about timezones?
+    commit->set_author("John Wiegley", "johnw@boostpro.com", std::mktime(&then));
+    commit->set_message("This is a sample commit.\n");
 
-    commit = commit.fork();      // makes a new commit based on the old one
-    commit.remove("foo/bar/baz.c");
-    commit.author_name  = "John Wiegley";
-    commit.author_email = "johnw@boostpro.com";
-    commit.author_date  = "2005-04-10T22:13:13";
-    commit.comment      = "This removes the previous file.\n";
+    Git::Branch branch("feature");
+    std::cerr << "Updating feature branch..." << std::endl;
+    branch.update(repo, commit);
 
-    GitBranch master("master", commit);
+    std::cerr << "Cloning commit..." << std::endl;
+    commit = commit->clone();   // makes a new commit based on the old one
+    std::cerr << "Removing file..." << std::endl;
+    commit->remove("foo/bar/baz.c");
+    strptime("2005-04-10T22:13:13", "%Y-%m-%dT%H:%M:%S", &then);
+    commit->set_author("John Wiegley", "johnw@boostpro.com", std::mktime(&then));
+    commit->set_message("This removes the previous file.\n");
 
-    git("symbolic-ref", "HEAD", "refs/heads/%s" % branch.name);
-#endif
+    Git::Branch master("master");
+    std::cerr << "Updating master branch..." << std::endl;
+    master.update(repo, commit);
+
     return 0;
   }
 
