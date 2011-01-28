@@ -55,6 +55,8 @@ namespace Git
   bool check_size(const Tree& tree) {
     if (tree.written && tree.entries.size() != git_tree_entrycount(tree)) {
       std::cerr << std::endl;
+      std::cerr << "Mismatch in written entries for " << tree.name
+                << " (" << &tree << ")" << std::endl;
 
       for (Tree::entries_map::const_iterator i = tree.entries.begin();
            i != tree.entries.end();

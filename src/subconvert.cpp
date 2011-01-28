@@ -537,12 +537,16 @@ struct ConvertRepository
         commit = current_commit(dump, pathname, past_commit);
       }
 
+#if 0
+      std::cerr << "dir add, copy from: " << node.get_copy_from_path()
+                << std::endl;
+      std::cerr << "dir add, copy to:   " << pathname << std::endl;
+#endif
+
       if (Git::ObjectPtr obj =
           past_commit->lookup(node.get_copy_from_path())) {
-        // We can just reuse this object without deep copying it, since
-        // it was created via reading just now.
-        obj->name = pathname.filename().string();
-        commit->update(pathname, obj);
+        commit->update(pathname,
+                       obj->copy_to_name(pathname.filename().string()));
         activity = true;
       } else {
         activity = false;
