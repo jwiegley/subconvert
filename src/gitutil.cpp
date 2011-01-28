@@ -54,6 +54,7 @@ namespace Git
 #ifdef ASSERTS
   bool check_size(const Tree& tree) {
     if (tree.written && tree.entries.size() != git_tree_entrycount(tree)) {
+#ifdef DEBUG
       std::cerr << std::endl;
       std::cerr << "Mismatch in written entries for " << tree.name
                 << " (" << &tree << ")" << std::endl;
@@ -74,6 +75,7 @@ namespace Git
         std::cerr << "git entry = " << git_tree_entry_name(entry)
                   << std::endl;
       }
+#endif
       return false;
     }
     return true;
