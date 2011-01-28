@@ -412,13 +412,12 @@ struct ConvertRepository
       // If the first action is a dir/add/copyfrom, then this will get
       // set correctly, otherwise it's a parentless branch, which is
       // also OK.
-      commit = copy_from ? copy_from->clone() : repository.create_commit();
+      commit = copy_from ? copy_from->clone(true) : repository.create_commit();
       commit->set_prefix(current_branch->prefix);
 
       status.info(std::string("Found new branch ") + current_branch->name);
     } else {
       commit = current_branch->commit->clone();
-      commit->set_prefix(current_branch->prefix);
     }
     current_branch->commit = commit; // don't update just yet
 
@@ -442,12 +441,11 @@ struct ConvertRepository
     }
 
     std::ostringstream buf;
-    if (log) {
+    if (log)
       buf << std::string(*log, 0, len) << '\n'
           << '\n';
-    } else {
+    else
       buf << "SVN-Revision: " << dump.get_rev_nr();
-    }
              
     commit->set_message(buf.str());
 
@@ -539,10 +537,12 @@ struct ConvertRepository
         commit = current_commit(dump, pathname, past_commit);
       }
 
-      if (Git::ObjectPtr tree =
+      if (Git::ObjectPtr obj =
           past_commit->lookup(node.get_copy_from_path())) {
-        tree->name = pathname.filename().string();
-        commit->update(pathname, tree);
+        // We can just reuse this object without deep copying it, since
+        // it was created via reading just now.
+        obj->name = pathname.filename().string();
+        commit->update(pathname, obj);
         activity = true;
       } else {
         activity = false;
@@ -552,6 +552,12 @@ struct ConvertRepository
 
   void report(std::ostream&) {
     if (! opts.dry_run) {
+      if (commit) {
+        if (activity)
+          commit->write();
+        commit = NULL;
+      }
+
       for (branches_vector::iterator i = branches.begin();
            i != branches.end();
            ++i)
@@ -673,7 +679,8 @@ int main(int argc, char *argv[])
     StatusDisplay     status(std::cerr, opts, "Converting");
     ConvertRepository converter(repo, status, opts);
 
-    while (dump.read_next()) {
+    while (dump.read_next(/* ignore_text= */ false,
+                          /* verify=      */ opts.verify)) {
       status.set_last_rev(dump.get_last_rev_nr());
       converter(dump, dump.get_curr_node());
     }

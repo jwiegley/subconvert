@@ -51,11 +51,20 @@
 
 namespace Git
 {
+  class Object;
+  class Blob;
+  class Tree;
+  class Commit;
   class Repository;
+  class Branch;
 
-  class Object
+  typedef boost::intrusive_ptr<Object> ObjectPtr;
+
+  class Object : public boost::noncopyable
   {
     friend class Repository;
+    friend class Tree;
+    friend class Commit;
 
   protected:
     Repository * repository;
@@ -82,7 +91,7 @@ namespace Git
            const std::string& _name, int _attributes)
       : repository(_repository), git_obj(_git_obj), refc(0),
         name(_name), attributes(_attributes), tree_entry(NULL) {}
-    ~Object() {
+    virtual ~Object() {
       assert(refc == 0);
     }
 
@@ -111,6 +120,8 @@ namespace Git
       return false;
     }
 
+    virtual ObjectPtr copy_to_name(const std::string& to_name) = 0;
+
     virtual void write() = 0;
 
     friend inline void intrusive_ptr_add_ref(Object * obj) {
@@ -121,7 +132,7 @@ namespace Git
     }
   };
 
-  typedef boost::intrusive_ptr<Object> ObjectPtr;
+  typedef boost::intrusive_ptr<Blob> BlobPtr;
 
   class Blob : public Object
   {
@@ -135,14 +146,24 @@ namespace Git
       return reinterpret_cast<git_blob *>(git_obj);
     }
 
+    virtual ObjectPtr copy_to_name(const std::string& to_name) {
+      if (name == to_name)
+        return this;
+      else
+        return new Blob(repository, reinterpret_cast<git_blob *>(git_obj),
+                        to_name, attributes);
+    }
+
     virtual void write() {}
   };
 
-  typedef boost::intrusive_ptr<Blob> BlobPtr;
+  typedef boost::intrusive_ptr<Tree> TreePtr;
 
   class Tree : public Object
   {
     friend class Repository;
+
+    friend bool check_size(const Tree& tree);
 
   protected:
     typedef std::map<std::string, ObjectPtr>  entries_map;
@@ -151,7 +172,6 @@ namespace Git
     entries_map entries;
     bool        written;
     bool        modified;
-    bool        sort_needed;
 
     ObjectPtr do_lookup(boost::filesystem::path::iterator segment,
                         boost::filesystem::path::iterator end) {
@@ -181,8 +201,9 @@ namespace Git
     Tree(Repository * repository, git_tree * tree,
          const std::string& name, int attributes = 0040000)
       : Object(repository, reinterpret_cast<git_object *>(tree),
-               name, attributes),
-        written(false), modified(false), sort_needed(false) {}
+               name, attributes), written(false), modified(false) {}
+
+    Tree(const Tree& other);
 
     operator git_tree *() const {
       return reinterpret_cast<git_tree *>(git_obj);
@@ -193,6 +214,12 @@ namespace Git
     }
     virtual bool is_tree() const {
       return true;
+    }
+
+    virtual ObjectPtr copy_to_name(const std::string& to_name) {
+      TreePtr new_tree(new Tree(*this));
+      new_tree->name = to_name;
+      return new_tree;
     }
 
     bool empty() const {
@@ -211,18 +238,9 @@ namespace Git
       do_remove(pathname.begin(), pathname.end());
     }
 
-    void clear() {
-      while (git_tree_entrycount(*this) > 0)
-        if (git_tree_remove_entry_byindex(*this, 0) != 0)
-          throw std::logic_error("Could not remove entry from tree");
-    }
-
     virtual void write();
   };
 
-  typedef boost::intrusive_ptr<Tree> TreePtr;
-
-  class Commit;
   typedef boost::intrusive_ptr<Commit> CommitPtr;
 
   class Commit : public Object
@@ -250,10 +268,18 @@ namespace Git
       return false;
     }
 
-    CommitPtr clone();
+    virtual ObjectPtr copy_to_name(const std::string& to_name) {
+      CommitPtr new_commit(clone(true));
+      new_commit->name = to_name;
+      return new_commit;
+    }
+
+    CommitPtr clone(bool with_copy = false);
 
     void add_parent(CommitPtr parent) {
-      parent->write();
+      if (! git_object_id(*parent))
+        parent->write();
+
       if (git_commit_add_parent(*this, *parent))
         throw std::logic_error("Could not add parent to commit");
     }
