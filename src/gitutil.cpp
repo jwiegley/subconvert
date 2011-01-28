@@ -32,6 +32,8 @@
 
 #include "gitutil.h"
 
+#include <sstream>
+
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -58,23 +60,26 @@ namespace Git
         written = false;        // force the whole tree to be rewritten
         entries.insert(entries_pair(name, obj));
       } else {
+#if 0
         // If the object we're updating is just a blob, the tree doesn't
         // need to be regnerated entirely, it will just get updated by
         // git_object_write.
-        if (obj->is_blob()) {
+        if (obj->is_blob() && written) {
           ObjectPtr curr_obj = (*i).second;
           git_tree_entry_set_id(curr_obj->tree_entry, *obj);
           git_tree_entry_set_attributes(curr_obj->tree_entry, obj->attributes);
           if (name != obj->name) {
-            sort_needed = true;
             entries.erase(i);
             entries.insert(entries_pair(obj->name, obj));
             git_tree_entry_set_name(curr_obj->tree_entry, obj->name.c_str());
+            sort_needed = true;
           } else {
             (*i).second = obj;
           }
           obj->tree_entry = curr_obj->tree_entry;
-        } else {
+        } else
+#endif
+        {
           written = false;      // force the whole tree to be rewritten
           (*i).second = obj;
         }
@@ -101,25 +106,35 @@ namespace Git
 
     modified = true;
 
-    entries_map::iterator i = entries.find(name);
+    entries_map::iterator i   = entries.find(name);
+    entries_map::iterator del = entries.end();
+
     // It's OK for remove not to find what it's looking for, because it
     // may be that Subversion wishes to remove an empty directory, which
     // would never have been added in the first place.
     if (i != entries.end()) {
       if (++segment == end) {
-        entries.erase(i);
-        if (git_tree_remove_entry_byname(*this, name.c_str()) != 0)
-          throw std::logic_error("Could not remove entry from tree");
+        del = i;
       } else {
         TreePtr subtree = dynamic_cast<Tree *>((*i).second.get());
         subtree->do_remove(segment, end);
-        if (subtree->empty()) {
-          entries.erase(i);
-          if (git_tree_remove_entry_byname(*this, name.c_str()) != 0)
-            throw std::logic_error("Could not remove entry from tree");
-        } else {
+        if (subtree->empty())
+          del = i;
+        else
           written = false;      // force the whole tree to be rewritten
-        }
+      }
+
+      if (del != entries.end()) {
+        (*del).second->tree_entry = NULL;
+        entries.erase(del);
+
+#if 1
+        written = false;        // force the whole tree to be rewritten
+#else
+        if (written &&
+            git_tree_remove_entry_byname(*this, name.c_str()) != 0)
+          throw std::logic_error("Could not remove entry from tree");
+#endif
       }
     }
   }
@@ -130,10 +145,15 @@ namespace Git
 
     if (written) {
       if (modified) {
+        assert(! entries.empty());
+        assert(entries.size() == git_tree_entrycount(*this));
+
         if (sort_needed)
           git_tree_sort_entries(*this);
-        if (git_object_write(*this) != 0)
-          throw std::logic_error("Could not write tree object");
+
+        int result = git_object_write(*this);
+        if (result != 0)
+          throw std::logic_error(git_strerror(result));
       }
     } else {
       // written may be false now because of a change which requires us
@@ -146,8 +166,11 @@ namespace Git
            i != entries.end();
            ++i) {
         ObjectPtr obj((*i).second);
-        if (! obj->is_blob())
+        if (! obj->is_blob()) {
+          assert(obj->name == (*i).first);
           obj->write();
+        }
+
         if (git_tree_add_entry2(&obj->tree_entry, *this, *obj,
                                 obj->name.c_str(), obj->attributes) != 0)
           throw std::logic_error("Could not add entry to tree");
@@ -162,9 +185,17 @@ namespace Git
 
   void Commit::update(const boost::filesystem::path& pathname, ObjectPtr obj)
   {
+    //std::cerr << "commit.update: " << pathname.string() << std::endl;
     if (! tree)
       tree = repository->create_tree((*pathname.begin()).string());
     tree->update(pathname, obj);
+  }
+
+  void Commit::remove(const boost::filesystem::path& pathname)
+  {
+    //std::cerr << "commit.remove: " << pathname.string() << std::endl;
+    if (tree)
+      tree->remove(pathname);
   }
 
   CommitPtr Commit::clone()
@@ -210,6 +241,47 @@ namespace Git
                            commit->sha1());
   }
 
+  TreePtr Repository::read_tree(git_tree * tree_obj, const std::string& name,
+                                int attributes)
+  {
+    TreePtr tree = new Tree(this, tree_obj, name, attributes);
+    tree->written = true;
+
+    std::size_t size = git_tree_entrycount(tree_obj);
+    for (std::size_t i = 0; i < size; ++i) {
+      git_tree_entry * entry = git_tree_entry_byindex(tree_obj, i);
+      if (! entry)
+        throw std::logic_error("Could not read Git tree entry");
+
+      std::string  name(git_tree_entry_name(entry));
+      int          attributes(git_tree_entry_attributes(entry));
+      git_object * git_obj;
+      if (git_tree_entry_2object(&git_obj, entry) != 0)
+        throw std::logic_error("Could not read Git object");
+
+      switch (git_object_type(git_obj)) {
+      case GIT_OBJ_BLOB: {
+        git_blob * blob_obj(reinterpret_cast<git_blob *>(git_obj));
+        BlobPtr    blob(new Blob(this, blob_obj, name, attributes));
+        blob->tree_entry = entry;
+        tree->entries.insert(Tree::entries_pair(name, blob));
+        break;
+      }
+      case GIT_OBJ_TREE: {
+        git_tree * subtree_obj(reinterpret_cast<git_tree *>(git_obj));
+        TreePtr    subtree(read_tree(subtree_obj, name, attributes));
+        subtree->tree_entry = entry;
+        tree->entries.insert(Tree::entries_pair(name, subtree));
+        break;
+      }
+      default:
+        assert(false);
+        break;
+      }
+    }
+    return tree;
+  }
+
   CommitPtr Repository::read_commit(const git_oid * oid)
   {
     git_commit * git_commit;
@@ -217,10 +289,18 @@ namespace Git
     if (git_commit_lookup(&git_commit, *this, oid) != 0)
       throw std::logic_error("Could not find Git commit");
 
-    CommitPtr commit = new Commit(this, git_commit);
+    // The commit prefix is no longer important at this stage, as its
+    // only used to determining which subset of the commit's tree to use
+    // when it's first written.
 
-    // jww (2011-01-27): NYI: Load tree data from the Git repository for
-    // this commit.
+    const git_tree * commit_tree = git_commit_tree(git_commit);
+    git_tree * tree;
+    if (git_tree_lookup(&tree, *this,
+                        git_tree_id(const_cast<git_tree *>(commit_tree))) != 0)
+      throw std::logic_error("Could not find Git tree");
+
+    CommitPtr commit = new Commit(this, git_commit);
+    commit->tree = read_tree(tree);
     return commit;
   }
 

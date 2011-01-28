@@ -412,8 +412,6 @@ struct ConvertRepository
       // If the first action is a dir/add/copyfrom, then this will get
       // set correctly, otherwise it's a parentless branch, which is
       // also OK.
-      assert(copy_from);
-
       commit = copy_from ? copy_from->clone() : repository.create_commit();
       commit->set_prefix(current_branch->prefix);
 
@@ -463,17 +461,17 @@ struct ConvertRepository
       status.update(rev);
 
       if (commit) {
-        rev_mapping.insert(revs_value(last_rev, commit->get_oid()));
-
         // If no activity was seen in the previous revision, don't build
         // a commit and just reuse the preceding commit object (if there
         // is one yet)
-        if (activity) {
-          if (! opts.dry_run)
-            commit->write();
-          commit = NULL;
-        }
+        if (activity && ! opts.dry_run)
+          commit->write();
+
+        rev_mapping.insert(revs_value(last_rev, commit->get_oid()));
+
+        commit = NULL;
       }
+      last_rev = rev;
       activity = false;
     }
 
@@ -487,13 +485,12 @@ struct ConvertRepository
     if (kind == SvnDump::File::Node::KIND_FILE &&
         (action == SvnDump::File::Node::ACTION_ADD ||
          action == SvnDump::File::Node::ACTION_CHANGE)) {
-      std::string data(node.has_text() ? node.get_text() : "");
-
       if (! commit)
         commit = current_commit(dump, pathname);
       commit->update(pathname,
                      repository.create_blob(pathname.filename().string(),
-                                            data.c_str(),
+                                            node.has_text() ?
+                                            node.get_text() : "",
                                             node.get_text_length()));
       activity = true;
     }
@@ -670,7 +667,8 @@ int main(int argc, char *argv[])
     invoke_scanner<FindBranches>(dump);
   }
   else if (cmd == "convert") {
-    Git::Repository   repo(args[2]);
+    Git::Repository   repo(args.size() == 2 ?
+                           boost::filesystem::current_path() : args[2]);
     StatusDisplay     status(std::cerr, opts, "Converting");
     ConvertRepository converter(repo, status, opts);
 

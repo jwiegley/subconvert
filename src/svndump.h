@@ -73,11 +73,15 @@ namespace SvnDump
       };
 
     private:
+#define STATIC_BUFLEN 65536
+
       int                                      curr_txn;
       boost::filesystem::path                  pathname;
       Kind                                     kind;
       Action                                   action;
       char *                                   text;
+      bool                                     text_allocated;
+      char                                     static_buffer[STATIC_BUFLEN];
       int                                      text_len;
       boost::optional<std::string>             md5_checksum;
       boost::optional<std::string>             sha1_checksum;
@@ -87,7 +91,7 @@ namespace SvnDump
       friend class File;
 
     public:
-      Node() : curr_txn(-1), text(NULL) { reset(); }
+      Node() : curr_txn(-1), text(NULL), text_allocated(false) { reset(); }
       ~Node() { reset(); }
 
       void reset() {
@@ -96,8 +100,10 @@ namespace SvnDump
 
         pathname.clear();
 
-        if (text)
+        if (text_allocated) {
           delete[] text;
+          text_allocated = false;
+        }
         text = NULL;
 
         md5_checksum   = boost::none;

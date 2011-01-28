@@ -142,6 +142,8 @@ namespace Git
 
   class Tree : public Object
   {
+    friend class Repository;
+
   protected:
     typedef std::map<std::string, ObjectPtr>  entries_map;
     typedef std::pair<std::string, ObjectPtr> entries_pair;
@@ -226,6 +228,9 @@ namespace Git
 
   class Commit : public Object
   {
+    friend class Repository;
+
+  protected:
     TreePtr                 tree;
     boost::filesystem::path prefix;
 
@@ -281,11 +286,7 @@ namespace Git
     }
 
     void update(const boost::filesystem::path& pathname, ObjectPtr obj);
-
-    void remove(const boost::filesystem::path& pathname) {
-      if (tree)
-        tree->remove(pathname);
-    }
+    void remove(const boost::filesystem::path& pathname);
 
     virtual void write();
   };
@@ -362,6 +363,8 @@ namespace Git
       return new Commit(this, git_commit);
     }
 
+    TreePtr   read_tree(git_tree * git_tree, const std::string& name = "",
+                        int attributes = 0040000);
     CommitPtr read_commit(const git_oid * oid);
 
     struct commit_iterator {

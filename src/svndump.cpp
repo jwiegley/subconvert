@@ -242,7 +242,12 @@ namespace SvnDump
           assert(! curr_node.has_text());
           assert(text_content_length > 0);
 
-          curr_node.text     = new char[text_content_length];
+          if (text_content_length > STATIC_BUFLEN) {
+            curr_node.text = new char[text_content_length];
+            curr_node.text_allocated = true;
+          } else {
+            curr_node.text = curr_node.static_buffer;
+          }
           curr_node.text_len = text_content_length;
 
           handle->read(curr_node.text, text_content_length);
