@@ -33,7 +33,7 @@
 #include "gitutil.h"
 
 #define OPTIMIZE (1)
-#define DEBUG    (1)
+//#define DEBUG    (1)
 
 #ifdef DEBUG
 #include <iostream>
