@@ -532,9 +532,11 @@ struct ConvertRepository
       assert(i != rev_mapping.end());
 
       Git::CommitPtr past_commit = repository.read_commit((*i).second);
+      bool           got_commit  = false;
       if (! commit) {
         assert(past_commit);
         commit = current_commit(dump, pathname, past_commit);
+        got_commit = true;
       }
 
 #if 0
@@ -549,6 +551,8 @@ struct ConvertRepository
                        obj->copy_to_name(pathname.filename().string()));
         activity = true;
       } else {
+        if (got_commit)
+          commit = NULL;        // ignore this commit
         activity = false;
       }
     }
