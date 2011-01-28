@@ -300,7 +300,8 @@ namespace Git
   {
     CommitPtr new_commit = repository->create_commit();
 
-    assert(git_object_id(*this));
+    if (! git_object_id(*this))
+      write();
 
     new_commit->tree   = with_copy ? new Tree(*tree) : tree;
     new_commit->prefix = prefix;
