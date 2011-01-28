@@ -146,12 +146,8 @@ namespace Git
       return reinterpret_cast<git_blob *>(git_obj);
     }
 
-    virtual ObjectPtr copy_to_name(const std::string& to_name) {
-      if (name == to_name)
-        return this;
-      else
-        return new Blob(repository, reinterpret_cast<git_blob *>(git_obj),
-                        to_name, attributes);
+    virtual ObjectPtr copy_to_name(const std::string&) {
+      return this;
     }
 
     virtual void write() {}
@@ -274,7 +270,11 @@ namespace Git
       return new_commit;
     }
 
+#ifdef READ_FROM_DISK
     CommitPtr clone(bool with_copy = false);
+#else
+    CommitPtr clone(bool with_copy = true);
+#endif
 
     void add_parent(CommitPtr parent) {
       if (! git_object_id(*parent))

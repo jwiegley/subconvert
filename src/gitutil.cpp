@@ -137,6 +137,7 @@ namespace Git
         tree = repository->create_tree(entry_name);
         entries.insert(entries_pair(entry_name, tree));
       } else {
+        (*i).second = (*i).second->copy_to_name((*i).first);
         tree = dynamic_cast<Tree *>((*i).second.get());
       }
       assert(tree->is_tree());
@@ -169,6 +170,7 @@ namespace Git
         del = i;
       } else {
         assert((*i).second->is_tree());
+        (*i).second = (*i).second->copy_to_name((*i).first);
         TreePtr subtree = dynamic_cast<Tree *>((*i).second.get());
 
         subtree->do_remove(segment, end);
@@ -200,30 +202,13 @@ namespace Git
 
   Tree::Tree(const Tree& other)
     : Object(other.repository, NULL, other.name, other.attributes),
-      written(false), modified(false)
+      entries(other.entries), written(false), modified(false)
   {
     git_tree * tree_obj;
     if (git_tree_new(&tree_obj, *repository) != 0)
       throw std::logic_error("Could not create Git tree");
 
     git_obj = reinterpret_cast<git_object *>(tree_obj);
-
-    for (entries_map::const_iterator i = other.entries.begin();
-         i != other.entries.end();
-         ++i) {
-      if ((*i).second->is_blob()) {
-        entries.insert(*i);
-      }
-      else if ((*i).second->is_tree()) {
-        TreePtr tree_obj(new Tree(*dynamic_cast<Tree *>((*i).second.get())));
-        entries.insert(entries_pair((*i).first, tree_obj));
-      }
-      else {
-        assert(false);          // jww (2011-01-28): NYI
-      }
-    }
-
-    assert(check_size(*this));
   }
 
   void Tree::write()

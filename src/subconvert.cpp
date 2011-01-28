@@ -281,7 +281,11 @@ struct ConvertRepository
 
   typedef std::vector<Git::Branch>          branches_vector;
 
-  typedef std::map<int, const git_oid*>     revs_map;
+#ifdef READ_FROM_DISK
+  typedef std::map<int, const git_oid *>    revs_map;
+#else
+  typedef std::map<int, Git::CommitPtr>     revs_map;
+#endif
   typedef revs_map::value_type              revs_value;
 
   Git::Repository& repository;
@@ -289,7 +293,7 @@ struct ConvertRepository
   branches_vector  branches;
   int              last_rev;
   bool             activity;
-  revs_map         rev_mapping;
+  revs_map         rev_map;
   Git::CommitPtr   commit;
   Git::Branch      default_branch;
   StatusDisplay&   status;
@@ -464,7 +468,11 @@ struct ConvertRepository
         // is one yet)
         if (activity && ! opts.dry_run) {
           commit->write();
-          rev_mapping.insert(revs_value(last_rev, commit->get_oid()));
+#ifdef READ_FROM_DISK
+          rev_map.insert(revs_value(last_rev, commit->get_oid()));
+#else
+          rev_map.insert(revs_value(last_rev, commit));
+#endif
         }
 
         commit = NULL;
@@ -503,7 +511,7 @@ struct ConvertRepository
              node.has_copy_from()) {
       int from_rev = node.get_copy_from_rev();
 
-      if (rev_mapping.empty()) {
+      if (rev_map.empty()) {
         for (Git::Repository::commit_iterator i = repository.commits_begin();
              i != repository.commits_end();
              ++i) {
@@ -515,23 +523,32 @@ struct ConvertRepository
                                    " not created by subconvert");
           offset += 14;
 
-          rev_mapping.insert(revs_value(std::atoi(message.c_str() + offset),
-                                        (*i)->get_oid()));
           assert((*i)->get_oid());
+#ifdef READ_FROM_DISK
+          rev_map.insert(revs_value(std::atoi(message.c_str() + offset),
+                                    (*i)->get_oid()));
+#else
+          rev_map.insert(revs_value(std::atoi(message.c_str() + offset),
+                                    repository.read_commit((*i)->get_oid())));
+#endif
         }
       }
 
       revs_map::iterator i;
       while (from_rev > 0) {
-        i = rev_mapping.find(from_rev);
-        if (i == rev_mapping.end())
+        i = rev_map.find(from_rev);
+        if (i == rev_map.end())
           --from_rev;
         else
           break;
       }
-      assert(i != rev_mapping.end());
+      assert(i != rev_map.end());
 
+#ifdef READ_FROM_DISK
       Git::CommitPtr past_commit = repository.read_commit((*i).second);
+#else
+      Git::CommitPtr past_commit = (*i).second;
+#endif
       bool           got_commit  = false;
       if (! commit) {
         assert(past_commit);
