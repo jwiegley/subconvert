@@ -285,9 +285,10 @@ namespace Git
   CommitPtr Repository::read_commit(const git_oid * oid)
   {
     git_commit * git_commit;
-    
-    if (git_commit_lookup(&git_commit, *this, oid) != 0)
-      throw std::logic_error("Could not find Git commit");
+
+    int result = git_commit_lookup(&git_commit, *this, oid);
+    if (result != 0)
+      throw std::logic_error(git_strerror(result));
 
     // The commit prefix is no longer important at this stage, as its
     // only used to determining which subset of the commit's tree to use

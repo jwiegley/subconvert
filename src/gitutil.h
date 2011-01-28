@@ -196,7 +196,6 @@ namespace Git
     }
 
     bool empty() const {
-      assert(! entries.empty() || git_tree_entrycount(*this) == 0);
       return entries.empty();
     }
 
@@ -254,6 +253,7 @@ namespace Git
     CommitPtr clone();
 
     void add_parent(CommitPtr parent) {
+      parent->write();
       if (git_commit_add_parent(*this, *parent))
         throw std::logic_error("Could not add parent to commit");
     }

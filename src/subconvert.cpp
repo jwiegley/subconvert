@@ -464,10 +464,10 @@ struct ConvertRepository
         // If no activity was seen in the previous revision, don't build
         // a commit and just reuse the preceding commit object (if there
         // is one yet)
-        if (activity && ! opts.dry_run)
+        if (activity && ! opts.dry_run) {
           commit->write();
-
-        rev_mapping.insert(revs_value(last_rev, commit->get_oid()));
+          rev_mapping.insert(revs_value(last_rev, commit->get_oid()));
+        }
 
         commit = NULL;
       }
@@ -519,6 +519,7 @@ struct ConvertRepository
 
           rev_mapping.insert(revs_value(std::atoi(message.c_str() + offset),
                                         (*i)->get_oid()));
+          assert((*i)->get_oid());
         }
       }
 
