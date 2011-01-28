@@ -8,7 +8,6 @@ pkginclude_HEADERS = src/svndump.h src/gitutil.h
 
 bin_PROGRAMS	= subconvert
 
-subconvert_CPPFLAGS = -DASSERTS
 subconvert_CXXFLAGS = -ansi -pedantic -pedantic-errors -Wall -Winvalid-pch	\
 		      -Wextra -Wcast-align -Wcast-qual -Wfloat-equal		\
 		      -Wmissing-field-initializers -Wno-endif-labels		\
