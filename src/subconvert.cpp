@@ -44,6 +44,10 @@ struct Options
   bool verify;
   bool dry_run;
 
+  boost::filesystem::path authors_file;
+  boost::filesystem::path branches_file;
+  boost::filesystem::path modules_file;
+
   Options() : verbose(false), debug(0),
               verify(false), dry_run(false) {}
 };
@@ -377,10 +381,11 @@ struct ConvertRepository
           break;
         case 1: break;
         case 2: break;
-        case 3:
+        case 3: break;
+        case 4:
           branch.prefix = p;
           break;
-        case 4:
+        case 5:
           branch.name = p;
           break;
         }
@@ -389,6 +394,9 @@ struct ConvertRepository
 
       branches.push_back(branch);
     }
+  }
+
+  void load_modules(const boost::filesystem::path& /*pathname*/) {
   }
 
   Git::CommitPtr
@@ -628,6 +636,12 @@ int main(int argc, char *argv[])
           opts.debug = 1;
         else if (std::strcmp(&argv[i][2], "dry-run") == 0)
           opts.dry_run = true;
+        else if (std::strcmp(&argv[i][2], "authors") == 0)
+          opts.authors_file = argv[++i];
+        else if (std::strcmp(&argv[i][2], "branches") == 0)
+          opts.branches_file = argv[++i];
+        else if (std::strcmp(&argv[i][2], "modules") == 0)
+          opts.modules_file = argv[++i];
       }
       else if (std::strcmp(&argv[i][1], "n") == 0)
         opts.dry_run = true;
@@ -635,6 +649,12 @@ int main(int argc, char *argv[])
         opts.verbose = true;
       else if (std::strcmp(&argv[i][1], "d") == 0)
         opts.debug = 1;
+      else if (std::strcmp(&argv[i][1], "A") == 0)
+        opts.authors_file = argv[++i];
+      else if (std::strcmp(&argv[i][1], "B") == 0)
+        opts.branches_file = argv[++i];
+      else if (std::strcmp(&argv[i][1], "M") == 0)
+        opts.modules_file = argv[++i];
     } else {
       args.push_back(argv[i]);
     }
@@ -703,6 +723,18 @@ int main(int argc, char *argv[])
                            boost::filesystem::current_path() : args[2]);
     StatusDisplay     status(std::cerr, opts, "Converting");
     ConvertRepository converter(repo, status, opts);
+
+    if (! opts.authors_file.empty() &&
+        boost::filesystem::is_regular_file(opts.authors_file))
+      converter.load_authors(opts.authors_file);
+
+    if (! opts.branches_file.empty() &&
+        boost::filesystem::is_regular_file(opts.branches_file))
+      converter.load_branches(opts.branches_file);
+
+    if (! opts.modules_file.empty() &&
+        boost::filesystem::is_regular_file(opts.modules_file))
+      converter.load_branches(opts.modules_file);
 
     while (dump.read_next(/* ignore_text= */ false,
                           /* verify=      */ opts.verify)) {
