@@ -558,8 +558,11 @@ struct ConvertRepository
         load_revmaps();
 
       Git::BranchPtr other_branch(find_branch(node.get_copy_from_path()));
+      if (! other_branch)
+        throw std::logic_error(std::string("Could not find branch for path: ") +
+                               node.get_copy_from_path().string());
 
-      Git::Branch::revs_map::iterator i;
+      Git::Branch::revs_map::iterator i = other_branch->rev_map.end();
       for (int from_rev = node.get_copy_from_rev(); from_rev > 0; --from_rev) {
         i = other_branch->rev_map.find(from_rev);
         if (i != other_branch->rev_map.end())
