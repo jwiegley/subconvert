@@ -291,7 +291,6 @@ namespace Git
   void Commit::write()
   {
     assert(git_object_id(*this) == NULL);
-
     assert(tree);
 
     TreePtr subtree;

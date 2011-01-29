@@ -406,7 +406,7 @@ struct ConvertRepository
   void load_modules(const boost::filesystem::path& /*pathname*/) {
   }
 
-  void load_revmaps()
+  void load_revmaps_for_branch(Git::BranchPtr branch)
   {
     // jww (2011-01-29): Need to walk through the entire repository, to
     // find all the commits.
@@ -457,12 +457,46 @@ struct ConvertRepository
       }
     }
     return branch ? branch : default_branch;
-  }      
+  }
 
-  Git::BranchPtr
-  prep_branch(const SvnDump::File&             dump,
-                const boost::filesystem::path& pathname,
-                Git::CommitPtr                 copy_from = NULL)
+  Git::CommitPtr find_past_commit(const SvnDump::File::Node& node)
+  {
+    Git::BranchPtr other_branch(find_branch(node.get_copy_from_path()));
+    if (! other_branch)
+      throw std::logic_error(std::string("Could not find branch for path: ") +
+                             node.get_copy_from_path().string());
+
+#if 0
+    // jww (2011-01-29): NYI
+    if (other_branch->rev_map.empty())
+      load_revmaps_for_branch(other_branch);
+#endif
+
+    Git::Branch::revs_map::iterator i = other_branch->rev_map.end();
+    for (int from_rev = node.get_copy_from_rev(); from_rev > 0; --from_rev) {
+      i = other_branch->rev_map.find(from_rev);
+      if (i != other_branch->rev_map.end())
+        break;
+    }
+    if (i == other_branch->rev_map.end()) {
+      std::ostringstream buf;
+      buf << "Could not find commit for path "
+          << node.get_copy_from_path()
+          << ", rev " << node.get_copy_from_rev()
+          << ", in branch: " << other_branch->prefix;
+      throw std::logic_error(buf.str());
+    }
+
+#ifdef READ_FROM_DISK
+    return repository.read_commit((*i).second);
+#else
+    return (*i).second;
+#endif
+  }
+
+  Git::BranchPtr prep_branch(const SvnDump::File&           dump,
+                             const boost::filesystem::path& pathname,
+                             Git::CommitPtr                 copy_from = NULL)
   {
     Git::BranchPtr current_branch(find_branch(pathname));
 
@@ -512,30 +546,34 @@ struct ConvertRepository
     return current_branch;
   }
 
+  void write_last_commit()
+  {
+    if (commit) {
+      // If no activity was seen in the previous revision, don't build
+      // a commit and just reuse the preceding commit object (if there
+      // is one yet)
+      if (activity && ! opts.dry_run) {
+        commit->write();
+#ifdef READ_FROM_DISK
+        branch->rev_map.insert
+          (Git::Branch::revs_value(last_rev, commit->get_oid()));
+#else
+        branch->rev_map.insert(Git::Branch::revs_value(last_rev, commit));
+#endif
+      }
+
+      commit = NULL;
+    }
+    activity = false;
+  }
+
   void operator()(const SvnDump::File&       dump,
                   const SvnDump::File::Node& node) {
     const int rev = dump.get_rev_nr();
     if (rev != last_rev) {
       status.update(rev);
-
-      if (commit) {
-        // If no activity was seen in the previous revision, don't build
-        // a commit and just reuse the preceding commit object (if there
-        // is one yet)
-        if (activity && ! opts.dry_run) {
-          commit->write();
-#ifdef READ_FROM_DISK
-          branch->rev_map.insert
-            (Git::Branch::revs_value(last_rev, commit->get_oid()));
-#else
-          branch->rev_map.insert(Git::Branch::revs_value(last_rev, commit));
-#endif
-        }
-
-        commit = NULL;
-      }
+      write_last_commit();
       last_rev = rev;
-      activity = false;
     }
 
     boost::filesystem::path pathname(node.get_path());
@@ -545,31 +583,10 @@ struct ConvertRepository
     SvnDump::File::Node::Kind   kind   = node.get_kind();
     SvnDump::File::Node::Action action = node.get_action();
     Git::CommitPtr              past_commit;
+
+    if (node.has_copy_from())
+      past_commit = find_past_commit(node);
  
-    if (node.has_copy_from()) {
-      if (branch->rev_map.empty())
-        load_revmaps();
-
-      Git::BranchPtr other_branch(find_branch(node.get_copy_from_path()));
-      if (! other_branch)
-        throw std::logic_error(std::string("Could not find branch for path: ") +
-                               node.get_copy_from_path().string());
-
-      Git::Branch::revs_map::iterator i = other_branch->rev_map.end();
-      for (int from_rev = node.get_copy_from_rev(); from_rev > 0; --from_rev) {
-        i = other_branch->rev_map.find(from_rev);
-        if (i != other_branch->rev_map.end())
-          break;
-      }
-      assert(i != other_branch->rev_map.end());
-
-#ifdef READ_FROM_DISK
-      past_commit = repository.read_commit((*i).second);
-#else
-      past_commit = (*i).second;
-#endif
-    }
-
     if (kind == SvnDump::File::Node::KIND_FILE &&
         (action == SvnDump::File::Node::ACTION_ADD ||
          action == SvnDump::File::Node::ACTION_CHANGE)) {
