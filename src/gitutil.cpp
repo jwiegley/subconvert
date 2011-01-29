@@ -32,7 +32,6 @@
 
 #include "gitutil.h"
 
-#define OPTIMIZE (1)
 //#define DEBUG    (1)
 
 #ifdef DEBUG
@@ -98,7 +97,6 @@ namespace Git
 
         written = false;        // force the whole tree to be rewritten
       } else {
-#ifdef OPTIMIZE
         // If the object we're updating is just a blob, the tree doesn't
         // need to be regnerated entirely, it will just get updated by
         // git_object_write.
@@ -123,9 +121,7 @@ namespace Git
           }
 
           obj->tree_entry = curr_obj->tree_entry;
-        } else
-#endif
-        {
+        } else {
           (*i).second = obj;
 
           written = false;      // force the whole tree to be rewritten
@@ -185,18 +181,13 @@ namespace Git
         (*del).second->tree_entry = NULL;
         entries.erase(del);
 
-#ifndef OPTIMIZE
-        written = false;        // force the whole tree to be rewritten
-#else
-        if (written &&
-            git_tree_remove_entry_byname(*this, entry_name.c_str()) != 0)
-          throw std::logic_error("Could not remove entry from tree");
-#endif
-
-        modified = true;
+        if (written)
+          git_check(git_tree_remove_entry_byname(*this, entry_name.c_str()));
       }
 
       assert(check_size(*this));
+
+      modified = true;
     }
   }
 
@@ -215,7 +206,6 @@ namespace Git
   {
     if (empty()) return;
 
-#ifdef OPTIMIZE
     if (written) {
       if (modified) {
         assert(! entries.empty());
@@ -225,9 +215,7 @@ namespace Git
         if (result != 0)
           throw std::logic_error(git_strerror(result));
       }
-    } else
-#endif
-    {
+    } else {
       assert(check_size(*this));
 
       // written may be false now because of a change which requires us
