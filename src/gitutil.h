@@ -151,8 +151,12 @@ namespace Git
       return reinterpret_cast<git_blob *>(git_obj);
     }
 
-    virtual ObjectPtr copy_to_name(const std::string&) {
-      return this;
+    virtual ObjectPtr copy_to_name(const std::string& to_name) {
+      if (name == to_name)
+        return this;
+      else
+        return new Blob(repository, reinterpret_cast<git_blob *>(git_obj),
+                        to_name, attributes);
     }
 
     virtual void write() {}
