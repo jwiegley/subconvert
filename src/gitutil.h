@@ -240,6 +240,8 @@ namespace Git
     }
 
     virtual void write();
+
+    void dump_tree(std::ostream& out, int depth = 0);
   };
 
   typedef boost::intrusive_ptr<Commit> CommitPtr;
@@ -320,6 +322,11 @@ namespace Git
     void remove(const boost::filesystem::path& pathname);
 
     virtual void write();
+
+    void dump_tree(std::ostream& out) {
+      if (tree)
+        tree->dump_tree(out);
+    }
   };
 
   class Branch

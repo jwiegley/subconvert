@@ -240,6 +240,25 @@ namespace Git
     modified = false;
   }
 
+  void Tree::dump_tree(std::ostream& out, int depth)
+  {
+    for (entries_map::const_iterator i = entries.begin();
+         i != entries.end();
+         ++i) {
+      for (int j = 0; j < depth; ++j)
+        out << "  ";
+
+      out << (*i).first;
+
+      if ((*i).second->is_tree()) {
+        out << "/\n";
+        dynamic_cast<Tree *>((*i).second.get())->dump_tree(out, depth + 1);
+      } else {
+        out << '\n';
+      }
+    }
+  }
+
   void Commit::update(const boost::filesystem::path& pathname, ObjectPtr obj)
   {
     //std::cerr << "commit.update: " << pathname.string() << std::endl;
