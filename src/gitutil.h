@@ -334,11 +334,18 @@ namespace Git
   class Branch
   {
   public:
+#ifdef READ_FROM_DISK
+    typedef std::map<int, const git_oid *> revs_map;
+#else
+    typedef std::map<int, Git::CommitPtr>  revs_map;
+#endif
+    typedef revs_map::value_type           revs_value;
+
     std::string             name;
     boost::filesystem::path prefix;
     bool                    is_tag;
     CommitPtr               commit;
-    //int                     final_rev;
+    revs_map                rev_map;
 
     Branch(const std::string& _name = "master")
       : name(_name), is_tag(false), commit(NULL), refc(0) {}
