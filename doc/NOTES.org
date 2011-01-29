@@ -1,3 +1,26 @@
+* [2011-01-28 Fri] Rewrite is working, plus I thought to use a RAM disk
+
+  This whole process is IOPS bound more than anything else, so using a RAM
+  disk greatly improved speed, and reduced wear on my hard drives.
+
+  | *C++ + libgit2*     |          |          |                             |
+  |---------------------+----------+----------+-----------------------------|
+  |                     |          |     <r8> |                             |
+  | RAM used during run | resident |   8.9 GB |                             |
+  |---------------------+----------+----------+-----------------------------|
+  | Total time to run   | user     |  273.94s |                             |
+  |                     | sys      |  538.86s |                             |
+  |                     | cpu      |      88% |                             |
+  |                     | total    |   15.38m |                             |
+  |---------------------+----------+----------+-----------------------------|
+  | Git objects created | unpacked |   936289 |                             |
+  |                     | packed   |          | git-svn: 593026 objs packed |
+  |---------------------+----------+----------+-----------------------------|
+  | Resulting repo size | unpacked |   4.4 GB |                             |
+  |                     | packed   |          |                             |
+  |---------------------+----------+----------+-----------------------------|
+  | Total files         | checkout |          |                             |
+
 * This is going too slowly, will rewrite in C++ and using libgit2
 
   Here are some initial numbers after porting the Subversion dumper to C++,
@@ -7,8 +30,14 @@
   | Python |           | 81.41s user | 8.98s sys | 88% cpu | 1:42.47 total |
   | C++    | g++ -fast |  6.42s user | 2.13s sys | 99% cpu | 0:08.55 total |
 
+  [2011-01-28 Fri]: I later found out this wasn't a fair comparison, as the
+  C++ scanner was just skipping over the text regions, instead of reading
+  them.  The real C++ numbers are in the 55s range.
+
 * [2011-01-23 Sun] Initial flat conversion completed, unoptimized
 
+  | *Python + git*      |          |          |                             |
+  |---------------------+----------+----------+-----------------------------|
   |                     |          |     <r8> |                             |
   | RAM used during run | resident |   8.3 GB |                             |
   |---------------------+----------+----------+-----------------------------|
