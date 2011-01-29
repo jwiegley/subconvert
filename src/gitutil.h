@@ -329,6 +329,8 @@ namespace Git
     }
   };
 
+  typedef boost::intrusive_ptr<Branch> BranchPtr;
+
   class Branch
   {
   public:
@@ -339,9 +341,31 @@ namespace Git
     //int                     final_rev;
 
     Branch(const std::string& _name = "master")
-      : name(_name), is_tag(false), commit(NULL) /* , final_rev(0) */ {}
+      : name(_name), is_tag(false), commit(NULL), refc(0) {}
+    ~Branch() {
+      assert(refc == 0);
+    }
+
+    mutable int refc;
+
+    void acquire() const {
+      assert(refc >= 0);
+      refc++;
+    }
+    void release() const {
+      assert(refc > 0);
+      if (--refc == 0)
+        boost::checked_delete(this);
+    }
 
     void update(Repository& repository, CommitPtr commit);
+
+    friend inline void intrusive_ptr_add_ref(Branch * obj) {
+      obj->acquire();
+    }
+    friend inline void intrusive_ptr_release(Branch * obj) {
+      obj->release();
+    }
   };
 
   class Repository
