@@ -74,6 +74,12 @@ public:
       out << message << std::endl;
   }
 
+  void warn(const std::string& message) {
+    if (! opts.verbose || opts.debug)
+      out << std::endl;
+    out << message << std::endl;
+  }
+
   void update(const int rev = -1) const {
     out << verb << ": ";
     if (rev != -1) {
@@ -402,23 +408,34 @@ struct ConvertRepository
   Git::CommitPtr
   current_commit(const SvnDump::File&           dump,
                  const boost::filesystem::path& pathname,
-                 Git::CommitPtr                 copy_from = NULL) {
-    Git::Branch * current_branch = NULL;
+                 Git::CommitPtr                 copy_from = NULL)
+  {
+    Git::Branch *      current_branch = NULL;
+    const std::string& path_str(pathname.string());
 
     for (branches_vector::iterator i = branches.begin();
          i != branches.end();
          ++i) {
-      if (boost::starts_with(pathname.string(), (*i).prefix.string()))
+      const std::string& prefix_str((*i).prefix.string());
+      if (boost::starts_with(path_str, prefix_str)) {
         if (const std::string::size_type branch_prefix_len =
-            (*i).prefix.string().length())
-          if (pathname.string().length() == branch_prefix_len ||
-              pathname.string()[branch_prefix_len] == '/') {
+            prefix_str.length()) {
+          if (path_str.length() == branch_prefix_len ||
+              path_str[branch_prefix_len] == '/') {
             assert(current_branch == NULL);
             current_branch = &(*i);
+            if (! opts.verify)
+              break;
           }
+        }
+      }
     }
-    if (! current_branch)
+    if (! current_branch) {
+      if (! branches.empty())
+        status.warn(std::string("Path not found on any branch: ") +
+                    pathname.string());
       current_branch = &default_branch;
+    }
 
     if (! current_branch->commit) {
       // If the first action is a dir/add/copyfrom, then this will get
@@ -436,12 +453,14 @@ struct ConvertRepository
     // Setup the author and commit comment
     std::string author_id(dump.get_rev_author());
     authors_map::iterator i = authors.find(author_id);
-    if (i != authors.end())
+    if (i != authors.end()) {
       // jww (2011-01-27): What about timezones?
       commit->set_author((*i).second.name, (*i).second.email,
                          dump.get_rev_date());
-    else
+    } else {
+      status.warn(std::string("Unrecognized author id: ") + author_id);
       commit->set_author(author_id, "", dump.get_rev_date());
+    }
 
     boost::optional<std::string> log(dump.get_rev_log());
     int len = 0;
