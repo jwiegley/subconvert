@@ -196,8 +196,7 @@ namespace Git
       entries(other.entries), written(false), modified(false)
   {
     git_tree * tree_obj;
-    if (git_tree_new(&tree_obj, *repository) != 0)
-      throw std::logic_error("Could not create Git tree");
+    git_check(git_tree_new(&tree_obj, *repository));
 
     git_obj = reinterpret_cast<git_object *>(tree_obj);
   }
@@ -210,10 +209,7 @@ namespace Git
       if (modified) {
         assert(! entries.empty());
         assert(check_size(*this));
-
-        int result = git_object_write(*this);
-        if (result != 0)
-          throw std::logic_error(git_strerror(result));
+        git_check(git_object_write(*this));
       }
     } else {
       assert(check_size(*this));
@@ -233,16 +229,14 @@ namespace Git
         if (! obj->is_blob())
           obj->write();
 
-        if (git_tree_add_entry2(&obj->tree_entry, *this, *obj,
-                                obj->name.c_str(), obj->attributes) != 0)
-          throw std::logic_error("Could not add entry to tree");
+        git_check(git_tree_add_entry2(&obj->tree_entry, *this, *obj,
+                                      obj->name.c_str(), obj->attributes));
       }
 
       assert(check_size(*this));
 
       git_tree_sort_entries(*this);
-      if (git_object_write(*this) != 0)
-        throw std::logic_error("Could not write tree object");
+      git_check(git_object_write(*this));
 
       assert(check_size(*this));
 
@@ -307,8 +301,7 @@ namespace Git
 
     git_commit_set_tree(*this, *subtree);
 
-    if (git_object_write(*this) != 0)
-      throw std::logic_error("Could not write out Git commit");
+    git_check(git_object_write(*this));
   }
 
   void Branch::update(Repository& repository, CommitPtr _commit)
@@ -334,8 +327,8 @@ namespace Git
       std::string  name(git_tree_entry_name(entry));
       int          attributes(git_tree_entry_attributes(entry));
       git_object * git_obj;
-      if (git_tree_entry_2object(&git_obj, entry) != 0)
-        throw std::logic_error("Could not read Git object");
+
+      git_check(git_tree_entry_2object(&git_obj, entry));
 
       switch (git_object_type(git_obj)) {
       case GIT_OBJ_BLOB: {
@@ -369,19 +362,17 @@ namespace Git
   {
     git_commit * git_commit;
 
-    int result = git_commit_lookup(&git_commit, *this, oid);
-    if (result != 0)
-      throw std::logic_error(git_strerror(result));
+    git_check(git_commit_lookup(&git_commit, *this, oid));
 
     // The commit prefix is no longer important at this stage, as its
     // only used to determining which subset of the commit's tree to use
     // when it's first written.
 
     const git_tree * commit_tree(git_commit_tree(git_commit));
-    git_tree * tree;
-    if (git_tree_lookup(&tree, *this,
-                        git_tree_id(const_cast<git_tree *>(commit_tree))) != 0)
-      throw std::logic_error("Could not find Git tree");
+    const git_oid *  tree_id(git_tree_id(const_cast<git_tree *>(commit_tree)));
+    git_tree *       tree;
+
+    git_check(git_tree_lookup(&tree, *this, tree_id));
 
     CommitPtr commit(new Commit(this, git_commit));
     commit->tree = read_tree(tree);

@@ -51,6 +51,11 @@
 
 namespace Git
 {
+  inline void git_check(int result) {
+    if (result != 0)
+      throw std::logic_error(git_strerror(result));
+  }
+
   class Object;
   class Blob;
   class Tree;
