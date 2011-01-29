@@ -456,18 +456,11 @@ struct ConvertRepository
         }
       }
     }
-    if (! branch) {
-      if (! branches.empty())
-        status.warn(std::string("Path not found on any branch: ") +
-                    pathname.string());
-      branch = default_branch;
-    }
-
-    return branch;
+    return branch ? branch : default_branch;
   }      
 
   Git::BranchPtr
-  prep_branch(const SvnDump::File&           dump,
+  prep_branch(const SvnDump::File&             dump,
                 const boost::filesystem::path& pathname,
                 Git::CommitPtr                 copy_from = NULL)
   {
