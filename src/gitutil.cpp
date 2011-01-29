@@ -81,7 +81,7 @@ namespace Git
   }
 #endif
 
-  void Tree::do_update(boost::filesystem::path::iterator segment,
+  bool Tree::do_update(boost::filesystem::path::iterator segment,
                        boost::filesystem::path::iterator end, ObjectPtr obj)
   {
     assert(check_size(*this));
@@ -138,14 +138,14 @@ namespace Git
       }
       assert(tree->is_tree());
 
-      written = false;          // force the whole tree to be rewritten
-
-      tree->do_update(segment, end, obj);
+      written = tree->do_update(segment, end, obj);
     }
 
     assert(check_size(*this));
 
     modified = true;
+
+    return written;
   }
 
   void Tree::do_remove(boost::filesystem::path::iterator segment,
@@ -161,7 +161,7 @@ namespace Git
     // It's OK for remove not to find what it's looking for, because it
     // may be that Subversion wishes to remove an empty directory, which
     // would never have been added in the first place.
-    if (i != entries.end()) {
+    if (i != del) {
       if (++segment == end) {
         del = i;
       } else {
@@ -173,8 +173,6 @@ namespace Git
 
         if (subtree->empty())
           del = i;
-        else
-          written = false;      // force the whole tree to be rewritten
       }
 
       if (del != entries.end()) {

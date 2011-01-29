@@ -192,7 +192,7 @@ namespace Git
       return result;
     }
 
-    void do_update(boost::filesystem::path::iterator segment,
+    bool do_update(boost::filesystem::path::iterator segment,
                    boost::filesystem::path::iterator end, ObjectPtr obj);
 
     void do_remove(boost::filesystem::path::iterator segment,
