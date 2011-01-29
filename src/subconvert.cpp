@@ -475,8 +475,8 @@ struct ConvertRepository
     if (log)
       buf << std::string(*log, 0, len) << '\n'
           << '\n';
-    else
-      buf << "SVN-Revision: " << dump.get_rev_nr();
+
+    buf << "SVN-Revision: " << dump.get_rev_nr();
              
     commit->set_message(buf.str());
 
