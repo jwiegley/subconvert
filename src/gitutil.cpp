@@ -318,10 +318,24 @@ namespace Git
   void Branch::update(Repository& repository, CommitPtr _commit)
   {
     commit = _commit;
-    assert(git_object_id(*commit));
 
-    repository.create_file(boost::filesystem::path("refs") / "heads" / name,
-                           commit->sha1());
+    boost::filesystem::path refs("refs");
+    refs = refs / "heads" / name;
+    
+    if (git_object_id(*commit)) {
+      repository.create_file(refs, commit->sha1());
+    } else {
+      // jww (2011-01-29): If a branch is suddenly empty, it's last
+      // meaningful commit should be shunted off to a unique tag,
+      // representing the aborted branch.
+
+      std::cerr << std::endl << "Pruning branch " << name << std::endl;
+
+      boost::filesystem::path dir(boost::filesystem::current_path());
+      boost::filesystem::path file(boost::filesystem::path(".git") / refs);
+      if (boost::filesystem::is_regular_file(file))
+        boost::filesystem::remove(file);
+    }
   }
 
   TreePtr Repository::read_tree(git_tree * tree_obj, const std::string& name,
