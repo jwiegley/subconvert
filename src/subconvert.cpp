@@ -37,6 +37,11 @@
 #include <sstream>
 #include <vector>
 
+#ifndef ASSERTS
+#undef assert
+#define assert(x)
+#endif
+
 struct Options
 {
   bool verbose;
