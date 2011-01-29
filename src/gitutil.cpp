@@ -32,11 +32,7 @@
 
 #include "gitutil.h"
 
-//#define DEBUG    (1)
-
-#ifdef DEBUG
 #include <iostream>
-#endif
 #include <sstream>
 
 #include <boost/filesystem/convenience.hpp>
@@ -246,9 +242,7 @@ namespace Git
 
   void Commit::update(const boost::filesystem::path& pathname, ObjectPtr obj)
   {
-#ifdef DEBUG
     //std::cerr << "commit.update: " << pathname.string() << std::endl;
-#endif
     if (! tree)
       tree = repository->create_tree();
     tree->update(pathname, obj);
@@ -256,9 +250,7 @@ namespace Git
 
   void Commit::remove(const boost::filesystem::path& pathname)
   {
-#ifdef DEBUG
     //std::cerr << "commit.remove: " << pathname.string() << std::endl;
-#endif
     if (tree)
       tree->remove(pathname);
   }
@@ -359,7 +351,6 @@ namespace Git
   CommitPtr Repository::read_commit(const git_oid * oid)
   {
     git_commit * git_commit;
-
     git_check(git_commit_lookup(&git_commit, *this, oid));
 
     // The commit prefix is no longer important at this stage, as its
