@@ -299,6 +299,8 @@ namespace Git
       subtree = tree;
     } else {
       ObjectPtr obj(tree->lookup(prefix));
+      if (! obj)
+        return;                 // don't write commits with empty trees
       assert(obj->is_tree());
       subtree = dynamic_cast<Tree *>(obj.get());
     }
