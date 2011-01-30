@@ -321,6 +321,7 @@ struct ConvertRepository
   Options                     opts;
   Git::Repository&            repository;
   int                         last_rev;
+  int                         rev;
   authors_map                 authors;
   std::set<std::string>       unrecognized_authors;
   branches_map                branches;
@@ -467,8 +468,11 @@ struct ConvertRepository
       if (i != branches.end())
         return (*i).second;
     }
-    status.warn(std::string("Could not find branch for path: ") +
-                pathname.string());
+
+    std::ostringstream buf;
+    buf << "Could not find branch for " << pathname << " in r" << rev;
+    status.warn(buf.str());
+
     return default_branch;
   }
 
@@ -491,10 +495,10 @@ struct ConvertRepository
 
     if (i == other_branch->rev_map.end()) {
       std::ostringstream buf;
-      buf << "Could not find commit for path "
+      buf << "Could not find commit for "
           << node.get_copy_from_path()
-          << ", rev " << node.get_copy_from_rev()
-          << ", in branch: " << other_branch->name;
+          << ", r" << node.get_copy_from_rev()
+          << ", in branch '" << other_branch->name << "'";
       throw std::logic_error(buf.str());
     }
 
@@ -552,9 +556,7 @@ struct ConvertRepository
     if (log)
       buf << std::string(*log, 0, len) << '\n'
           << '\n';
-
-    buf << "SVN-Revision: " << dump.get_rev_nr();
-             
+    buf << "SVN-Revision: " << rev;
     commit->set_message(buf.str());
 
     commit_queue.push_back(commit);
@@ -604,7 +606,7 @@ struct ConvertRepository
 
   void operator()(const SvnDump::File& dump, const SvnDump::File::Node& node)
   {
-    const int rev = dump.get_rev_nr();
+    rev = dump.get_rev_nr();
     if (rev != last_rev) {
       status.update(rev);
       flush_commit_queue();
