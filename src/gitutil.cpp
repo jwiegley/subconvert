@@ -129,8 +129,8 @@ namespace Git
         tree = repository->create_tree(entry_name);
         entries.insert(entries_pair(entry_name, tree));
       } else {
-        (*i).second = (*i).second->copy_to_name((*i).first);
         tree = dynamic_cast<Tree *>((*i).second.get());
+        (*i).second = tree = tree->copy();
       }
       assert(tree->is_tree());
 
@@ -162,8 +162,8 @@ namespace Git
         del = i;
       } else {
         assert((*i).second->is_tree());
-        (*i).second = (*i).second->copy_to_name((*i).first);
         TreePtr subtree = dynamic_cast<Tree *>((*i).second.get());
+        (*i).second = subtree = subtree->copy();
 
         subtree->do_remove(segment, end);
 
@@ -287,7 +287,7 @@ namespace Git
   {
     CommitPtr new_commit = repository->create_commit();
 
-    if (! git_object_id(*this))
+    if (! is_written())
       write();
 
     new_commit->tree = with_copy ? new Tree(*tree) : tree;

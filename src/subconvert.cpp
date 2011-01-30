@@ -76,8 +76,16 @@ public:
     last_rev = _last_rev;
   }
 
+  void debug(const std::string& message) {
+    if (opts.debug) {
+      newline();
+      out << message << std::endl;
+      need_newline = false;
+    }
+  }
   void info(const std::string& message) {
     if (opts.verbose || opts.debug) {
+      newline();
       out << message << std::endl;
       need_newline = false;
     }
@@ -314,14 +322,17 @@ struct ConvertRepository
   typedef std::map<std::string, AuthorInfo> authors_map;
   typedef authors_map::value_type           authors_value;
 
-  typedef std::map<boost::filesystem::path, Git::BranchPtr> branches_map;
-  typedef branches_map::value_type                          branches_value;
+  typedef std::map<boost::filesystem::path,
+                   Git::BranchPtr>          branches_map;
+  typedef branches_map::value_type          branches_value;
 
   StatusDisplay&              status;
   Options                     opts;
   Git::Repository&            repository;
   int                         last_rev;
   int                         rev;
+  std::vector<Git::TreePtr>   rev_trees;
+  Git::TreePtr                rev_tree;
   authors_map                 authors;
   std::set<std::string>       unrecognized_authors;
   branches_map                branches;
@@ -332,7 +343,7 @@ struct ConvertRepository
   ConvertRepository(Git::Repository& _repository, StatusDisplay& _status,
                     const Options& _opts = Options())
     : status(_status), opts(_opts), repository(_repository),
-      last_rev(0), default_branch(new Git::Branch()) {}
+      last_rev(-1), default_branch(new Git::Branch()) {}
 
   void load_authors(const boost::filesystem::path& pathname)
   {
@@ -431,7 +442,7 @@ struct ConvertRepository
     // jww (2011-01-29): NYI
   }
 
-  void load_revmaps_for_branch(Git::BranchPtr branch)
+  void load_revmap()
   {
     // jww (2011-01-29): Need to walk through the entire repository, to
     // find all the commits.
@@ -447,6 +458,7 @@ struct ConvertRepository
       offset += 14;
 
       assert((*i)->get_oid());
+#if 0
 #ifdef READ_FROM_DISK
       branch->rev_map.insert
         (Git::Branch::revs_value(std::atoi(message.c_str() + offset),
@@ -455,6 +467,7 @@ struct ConvertRepository
       branch->rev_map.insert
         (Git::Branch::revs_value(std::atoi(message.c_str() + offset),
                                  repository.read_commit((*i)->get_oid())));
+#endif
 #endif
     }
   }
@@ -476,42 +489,18 @@ struct ConvertRepository
     return default_branch;
   }
 
-  Git::CommitPtr get_past_commit(const SvnDump::File::Node& node)
+  Git::TreePtr get_past_tree(const SvnDump::File::Node& node)
   {
-    Git::BranchPtr other_branch(find_branch(node.get_copy_from_path()));
-
 #if 0
     // jww (2011-01-29): NYI
     if (other_branch->rev_map.empty())
-      load_revmaps_for_branch(other_branch);
+      load_revmap();
 #endif
-
-    Git::Branch::revs_map::iterator i = other_branch->rev_map.end();
-    for (int from_rev = node.get_copy_from_rev(); from_rev > 0; --from_rev) {
-      i = other_branch->rev_map.find(from_rev);
-      if (i != other_branch->rev_map.end())
-        break;
-    }
-
-    if (i == other_branch->rev_map.end()) {
-      std::ostringstream buf;
-      buf << "Could not find commit for "
-          << node.get_copy_from_path()
-          << ", r" << node.get_copy_from_rev()
-          << ", in branch '" << other_branch->name << "'";
-      throw std::logic_error(buf.str());
-    }
-
-#ifdef READ_FROM_DISK
-    return repository.read_commit((*i).second);
-#else
-    return (*i).second;
-#endif
+    return rev_trees[node.get_copy_from_rev()];
   }
 
   Git::CommitPtr get_commit(const SvnDump::File&           dump,
-                            const boost::filesystem::path& pathname,
-                            Git::CommitPtr                 copy_from = NULL)
+                            const boost::filesystem::path& pathname)
   {
     Git::BranchPtr branch(find_branch(pathname));
     Git::CommitPtr commit(branch->next_commit);
@@ -524,10 +513,8 @@ struct ConvertRepository
       // If the first action is a dir/add/copyfrom, then this will get
       // set correctly, otherwise it's a parentless branch, which is
       // also OK.
-      commit = branch->next_commit = (copy_from ? copy_from->clone(true) :
-                                      repository.create_commit());
-
-      status.info(std::string("Found new branch ") + branch->name);
+      commit = branch->next_commit = repository.create_commit();
+      status.info(std::string("Found new branch: ") + branch->name);
     }
     commit->branch = branch;
 
@@ -574,16 +561,15 @@ struct ConvertRepository
         (*i)->branch->next_commit.reset();
 
         if ((*i)->has_tree()) {
+#if 0
+          std::ostringstream buf;
+          buf << "Tree " << (*i)->tree.get() << " for commit in r" << last_rev << ":";
+          status.warn(buf.str());
+          (*i)->dump_tree(std::cerr);
+#endif
           // Only now does the commit get associated with its branch
           (*i)->branch->commit = *i;
           (*i)->write();
-
-#ifdef READ_FROM_DISK
-          (*i)->branch->rev_map.insert
-            (Git::Branch::revs_value(last_rev, (*i)->get_oid()));
-#else
-          (*i)->branch->rev_map.insert(Git::Branch::revs_value(last_rev, *i));
-#endif
         } else {
           Git::BranchPtr branch((*i)->branch);
 
@@ -597,8 +583,6 @@ struct ConvertRepository
               break;
             }
         }
-      } else {
-        (*i)->branch->next_commit.reset();
       }
     }
     commit_queue.clear();
@@ -609,7 +593,16 @@ struct ConvertRepository
     rev = dump.get_rev_nr();
     if (rev != last_rev) {
       status.update(rev);
+
       flush_commit_queue();
+
+      for (int i = static_cast<int>(rev_trees.size()) - 1; i < rev; ++i) {
+        if (rev_tree)
+          rev_tree = rev_tree->copy();
+        else
+          rev_tree = repository.create_tree();
+        rev_trees.push_back(rev_tree);
+      }
       last_rev = rev;
     }
 
@@ -620,6 +613,7 @@ struct ConvertRepository
     SvnDump::File::Node::Kind   kind   = node.get_kind();
     SvnDump::File::Node::Action action = node.get_action();
 
+    bool set_tree = false;
     if (kind == SvnDump::File::Node::KIND_FILE &&
         (action == SvnDump::File::Node::ACTION_ADD ||
          action == SvnDump::File::Node::ACTION_CHANGE)) {
@@ -627,30 +621,34 @@ struct ConvertRepository
                   (action == SvnDump::File::Node::ACTION_ADD ?
                    "add" : "change") + ": " + pathname.string());
 
-      Git::CommitPtr commit(get_commit(dump, pathname));
+      Git::ObjectPtr obj;
       if (node.has_copy_from()) {
-        Git::CommitPtr past_commit(get_past_commit(node));
-        Git::ObjectPtr obj(past_commit->lookup(node.get_copy_from_path()));
+        Git::TreePtr past_tree(get_past_tree(node));
+        obj = past_tree->lookup(node.get_copy_from_path());
         if (! obj) {
-          status.warn("Could not find object in the following commit tree:");
-          past_commit->dump_tree(std::cerr);
+          std::ostringstream buf;
+          buf << "Could not find " << node.get_copy_from_path()
+              << " in tree r" << node.get_copy_from_rev() << ":";
+          status.warn(buf.str());
+          past_tree->dump_tree(std::cerr);
         }
         assert(obj);
         assert(obj->is_blob());
-        commit->update(pathname,
-                       obj->copy_to_name(pathname.filename().string()));
+        obj = obj->copy_to_name(pathname.filename().string());
       } else {
-        commit->update(pathname,
-                       repository.create_blob(pathname.filename().string(),
-                                              node.has_text() ?
-                                              node.get_text() : "",
-                                              node.get_text_length()));
+        obj = repository.create_blob(pathname.filename().string(),
+                                     node.has_text() ?
+                                     node.get_text() : "",
+                                     node.get_text_length());
       }
+      rev_tree->update(pathname, obj);
+      set_tree = true;
     }
     else if (action == SvnDump::File::Node::ACTION_DELETE) {
       status.info(std::string(".delete: ") + pathname.string());
 
-      get_commit(dump, pathname)->remove(pathname);
+      rev_tree->remove(pathname);
+      set_tree = true;
     }
     else if (node.has_copy_from() &&
              kind   == SvnDump::File::Node::KIND_DIR   &&
@@ -659,11 +657,16 @@ struct ConvertRepository
                   node.get_copy_from_path().string() + " -> " +
                   pathname.string());
 
-      Git::CommitPtr past_commit(get_past_commit(node));
-      if (Git::ObjectPtr obj = past_commit->lookup(node.get_copy_from_path()))
-        get_commit(dump, pathname, past_commit)
-          ->update(pathname, obj->copy_to_name(pathname.filename().string()));
+      if (Git::ObjectPtr obj =
+          get_past_tree(node)->lookup(node.get_copy_from_path())) {
+        obj = obj->copy_to_name(pathname.filename().string());
+        rev_tree->update(pathname, obj);
+        set_tree = true;
+      }
     }
+
+    if (set_tree)
+      get_commit(dump, pathname)->set_tree(rev_tree);
   }
 
   void report(std::ostream&)

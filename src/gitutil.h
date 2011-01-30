@@ -236,8 +236,11 @@ namespace Git
       return written && ! modified;
     }
 
+    virtual TreePtr copy() {
+      return new Tree(*this);
+    }
     virtual ObjectPtr copy_to_name(const std::string& to_name) {
-      TreePtr new_tree(new Tree(*this));
+      TreePtr new_tree(copy());
       new_tree->name = to_name;
       return new_tree;
     }
@@ -270,10 +273,8 @@ namespace Git
   {
     friend class Repository;
 
-  protected:
-    TreePtr tree;
-
   public:
+    TreePtr   tree;
     BranchPtr branch;
 
     Commit(Repository * repo, git_commit * commit,
@@ -297,6 +298,9 @@ namespace Git
     }
 
     bool has_tree() const;
+    void set_tree(Git::TreePtr _tree) {
+      tree = _tree;
+    }
 
     virtual ObjectPtr copy_to_name(const std::string& to_name) {
       CommitPtr new_commit(clone(true));
@@ -356,19 +360,11 @@ namespace Git
   class Branch
   {
   public:
-#ifdef READ_FROM_DISK
-    typedef std::map<int, const git_oid *> revs_map;
-#else
-    typedef std::map<int, Git::CommitPtr>  revs_map;
-#endif
-    typedef revs_map::value_type           revs_value;
-
     std::string             name;
     boost::filesystem::path prefix;
     bool                    is_tag;
     CommitPtr               commit;
     CommitPtr               next_commit;
-    revs_map                rev_map;
 
     Branch(const std::string& _name = "master")
       : name(_name), is_tag(false), refc(0) {}
