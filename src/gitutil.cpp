@@ -261,7 +261,6 @@ namespace Git
 
   void Commit::update(const boost::filesystem::path& pathname, ObjectPtr obj)
   {
-    //std::cerr << "commit.update: " << pathname.string() << std::endl;
     if (! tree)
       tree = repository->create_tree();
     tree->update(pathname, obj);
@@ -269,9 +268,19 @@ namespace Git
 
   void Commit::remove(const boost::filesystem::path& pathname)
   {
-    //std::cerr << "commit.remove: " << pathname.string() << std::endl;
-    if (tree)
+    if (tree) {
       tree->remove(pathname);
+      if (tree->empty())
+        tree = NULL;
+    }
+  }
+
+  bool Commit::has_tree() const
+  {
+    if (branch->prefix.empty())
+      return tree;
+    else
+      return tree->lookup(branch->prefix);
   }
 
   CommitPtr Commit::clone(bool with_copy)
@@ -281,8 +290,7 @@ namespace Git
     if (! git_object_id(*this))
       write();
 
-    new_commit->tree   = with_copy ? new Tree(*tree) : tree;
-    new_commit->prefix = prefix;
+    new_commit->tree = with_copy ? new Tree(*tree) : tree;
     new_commit->add_parent(this);
 
     return new_commit;
@@ -290,14 +298,14 @@ namespace Git
 
   void Commit::write()
   {
-    assert(git_object_id(*this) == NULL);
+    assert(! is_written());
     assert(tree);
 
     TreePtr subtree;
-    if (prefix.empty()) {
+    if (branch->prefix.empty()) {
       subtree = tree;
     } else {
-      ObjectPtr obj(tree->lookup(prefix));
+      ObjectPtr obj(tree->lookup(branch->prefix));
       if (! obj)
         return;                 // don't write commits with empty trees
       assert(obj->is_tree());
@@ -314,27 +322,12 @@ namespace Git
     git_check(git_object_write(*this));
   }
 
-  void Branch::update(Repository& repository, CommitPtr _commit)
+  void Branch::update(Repository& repository)
   {
-    commit = _commit;
-
-    boost::filesystem::path refs("refs");
-    refs = refs / "heads" / name;
-    
-    if (git_object_id(*commit)) {
-      repository.create_file(refs, commit->sha1());
-    } else {
-      // jww (2011-01-29): If a branch is suddenly empty, it's last
-      // meaningful commit should be shunted off to a unique tag,
-      // representing the aborted branch.
-
-      std::cerr << std::endl << "Pruning branch " << name << std::endl;
-
-      boost::filesystem::path dir(boost::filesystem::current_path());
-      boost::filesystem::path file(boost::filesystem::path(".git") / refs);
-      if (boost::filesystem::is_regular_file(file))
-        boost::filesystem::remove(file);
-    }
+    assert(commit);
+    assert(commit->is_written());
+    repository.create_file(boost::filesystem::path("refs") / "heads" / name,
+                           commit->sha1());
   }
 
   TreePtr Repository::read_tree(git_tree * tree_obj, const std::string& name,

@@ -48,42 +48,52 @@ struct Options
   bool verbose;
   int  debug;
   bool verify;
-  bool dry_run;
+  int  cutoff;
 
   boost::filesystem::path authors_file;
   boost::filesystem::path branches_file;
   boost::filesystem::path modules_file;
 
-  Options() : verbose(false), debug(0),
-              verify(false), dry_run(false) {}
+  Options() : verbose(false), debug(0), verify(false), cutoff(0) {}
 };
 
-class StatusDisplay
+class StatusDisplay : public boost::noncopyable
 {
   std::ostream& out;
   std::string   verb;
   int           last_rev;
+  mutable bool  need_newline;
   Options       opts;
 
 public:
   StatusDisplay(std::ostream&      _out,
                 const Options&     _opts = Options(),
                 const std::string& _verb = "Scanning") :
-    out(_out), verb(_verb), last_rev(-1), opts(_opts) {}
+    out(_out), verb(_verb), last_rev(-1), need_newline(false),
+    opts(_opts) {}
 
   void set_last_rev(int _last_rev = -1) {
     last_rev = _last_rev;
   }
 
   void info(const std::string& message) {
-    if (opts.verbose || opts.debug)
+    if (opts.verbose || opts.debug) {
       out << message << std::endl;
+      need_newline = false;
+    }
+  }
+
+  void newline() const {
+    if (need_newline) {
+      out << std::endl;
+      need_newline = false;
+    }
   }
 
   void warn(const std::string& message) {
-    if (! opts.verbose || opts.debug)
-      out << std::endl;
+    newline();
     out << message << std::endl;
+    need_newline = false;
   }
 
   void update(const int rev = -1) const {
@@ -98,12 +108,17 @@ public:
     } else {
       out << ", done.";
     }
-    out << ((! opts.debug && ! opts.verbose) ? '\r' : '\n');
+
+    //if (! opts.debug && ! opts.verbose) {
+      out << '\r';
+      need_newline = true;
+    //} else {
+    //  newline();
+    //}
   }
 
   void finish() const {
-    if (! opts.verbose && ! opts.debug)
-      out << '\n';
+    newline();
   }
 };
 
@@ -136,7 +151,8 @@ struct FindAuthors
     }
   }
 
-  void report(std::ostream& out) {
+  void report(std::ostream& out)
+  {
     status.finish();
 
     for (authors_map::const_iterator i = authors.begin();
@@ -166,8 +182,14 @@ struct FindBranches
   FindBranches(StatusDisplay& _status) : status(_status), last_rev(-1) {}
 
   void apply_action(int rev, std::time_t date,
-                    const boost::filesystem::path& pathname) {
-    if (branches.find(pathname) == branches.end()) {
+                    const boost::filesystem::path& pathname)
+  {
+    boost::optional<branches_map::iterator> branch;
+
+    branches_map::iterator i = branches.find(pathname);
+    if (i != branches.end()) {
+      branch = i;
+    } else {
       std::vector<boost::filesystem::path> to_remove;
 
       for (branches_map::iterator i = branches.begin();
@@ -180,8 +202,6 @@ struct FindBranches
            i != to_remove.end();
            ++i)
         branches.erase(*i);
-
-      boost::optional<branches_map::iterator> branch;
 
       for (branches_map::iterator i = branches.begin();
            i != branches.end();
@@ -197,12 +217,12 @@ struct FindBranches
         assert(result.second);
         branch = result.first;
       }
+    }
 
-      if ((**branch).second.last_rev != rev) {
-        (**branch).second.last_rev  = rev;
-        (**branch).second.last_date = date;
-        ++(**branch).second.changes;
-      }
+    if ((**branch).second.last_rev != rev) {
+      (**branch).second.last_rev  = rev;
+      (**branch).second.last_date = date;
+      ++(**branch).second.changes;
     }
   }
 
@@ -213,19 +233,18 @@ struct FindBranches
     if (rev != last_rev) {
       status.update(rev);
       last_rev = rev;
-
-      if (node.get_action() != SvnDump::File::Node::ACTION_DELETE)
-        if (node.get_kind() == SvnDump::File::Node::KIND_DIR) {
-          if (node.has_copy_from())
-            apply_action(rev, dump.get_rev_date(), node.get_path());
-        } else {
-          apply_action(rev, dump.get_rev_date(),
-                       node.get_path().parent_path());
-        }
     }
+
+    if (node.get_action() != SvnDump::File::Node::ACTION_DELETE &&
+        (node.get_kind()  == SvnDump::File::Node::KIND_FILE ||
+         node.has_copy_from()))
+      apply_action(rev, dump.get_rev_date(),
+                   node.get_kind() == SvnDump::File::Node::KIND_DIR ?
+                   node.get_path() : node.get_path().parent_path());
   }
 
-  void report(std::ostream& out) {
+  void report(std::ostream& out)
+  {
     status.finish();
 
     for (branches_map::const_iterator i = branches.begin();
@@ -295,26 +314,27 @@ struct ConvertRepository
   typedef std::map<std::string, AuthorInfo> authors_map;
   typedef authors_map::value_type           authors_value;
 
-  typedef std::vector<Git::BranchPtr>       branches_vector;
+  typedef std::map<boost::filesystem::path, Git::BranchPtr> branches_map;
+  typedef branches_map::value_type                          branches_value;
 
-  Git::Repository&      repository;
-  authors_map           authors;
-  std::set<std::string> unrecognized;
-  branches_vector       branches;
-  int                   last_rev;
-  bool                  activity;
-  Git::CommitPtr        commit;
-  Git::BranchPtr        branch;
-  Git::BranchPtr        default_branch;
-  StatusDisplay&        status;
-  Options               opts;
+  StatusDisplay&              status;
+  Options                     opts;
+  Git::Repository&            repository;
+  int                         last_rev;
+  authors_map                 authors;
+  std::set<std::string>       unrecognized_authors;
+  branches_map                branches;
+  std::vector<Git::BranchPtr> deleted_branches;
+  std::vector<Git::CommitPtr> commit_queue;
+  Git::BranchPtr              default_branch;
 
   ConvertRepository(Git::Repository& _repository, StatusDisplay& _status,
                     const Options& _opts = Options())
-    : repository(_repository), last_rev(0), activity(false),
-      commit(NULL), status(_status), opts(_opts) {}
+    : status(_status), opts(_opts), repository(_repository),
+      last_rev(0), default_branch(new Git::Branch()) {}
 
-  void load_authors(const boost::filesystem::path& pathname) {
+  void load_authors(const boost::filesystem::path& pathname)
+  {
     authors.clear();
 
     static const int MAX_LINE = 8192;
@@ -364,8 +384,10 @@ struct ConvertRepository
     }
   }
 
-  void load_branches(const boost::filesystem::path& pathname) {
+  void load_branches(const boost::filesystem::path& pathname)
+  {
     branches.clear();
+    deleted_branches.clear();
 
     static const int MAX_LINE = 8192;
     char linebuf[MAX_LINE + 1];
@@ -399,11 +421,13 @@ struct ConvertRepository
         field++;
       }
 
-      branches.push_back(branch);
+      branches.insert(branches_value(branch->prefix, branch));
     }
   }
 
-  void load_modules(const boost::filesystem::path& /*pathname*/) {
+  void load_modules(const boost::filesystem::path& /*pathname*/)
+  {
+    // jww (2011-01-29): NYI
   }
 
   void load_revmaps_for_branch(Git::BranchPtr branch)
@@ -436,35 +460,21 @@ struct ConvertRepository
 
   Git::BranchPtr find_branch(const boost::filesystem::path& pathname)
   {
-    Git::BranchPtr     branch;
-    const std::string& path_str(pathname.string());
-
-    for (branches_vector::iterator i = branches.begin();
-         i != branches.end();
-         ++i) {
-      const std::string& prefix_str((*i)->prefix.string());
-      if (boost::starts_with(path_str, prefix_str)) {
-        if (const std::string::size_type branch_prefix_len =
-            prefix_str.length()) {
-          if (path_str.length() == branch_prefix_len ||
-              path_str[branch_prefix_len] == '/') {
-            assert(branch == NULL);
-            branch = *i;
-            if (! opts.verify)
-              break;
-          }
-        }
-      }
+    for (boost::filesystem::path dirname(pathname);
+         ! dirname.empty();
+         dirname = dirname.parent_path()) {
+      branches_map::iterator i = branches.find(dirname);
+      if (i != branches.end())
+        return (*i).second;
     }
-    return branch ? branch : default_branch;
+    status.warn(std::string("Could not find branch for path: ") +
+                pathname.string());
+    return default_branch;
   }
 
-  Git::CommitPtr find_past_commit(const SvnDump::File::Node& node)
+  Git::CommitPtr get_past_commit(const SvnDump::File::Node& node)
   {
     Git::BranchPtr other_branch(find_branch(node.get_copy_from_path()));
-    if (! other_branch)
-      throw std::logic_error(std::string("Could not find branch for path: ") +
-                             node.get_copy_from_path().string());
 
 #if 0
     // jww (2011-01-29): NYI
@@ -478,12 +488,13 @@ struct ConvertRepository
       if (i != other_branch->rev_map.end())
         break;
     }
+
     if (i == other_branch->rev_map.end()) {
       std::ostringstream buf;
       buf << "Could not find commit for path "
           << node.get_copy_from_path()
           << ", rev " << node.get_copy_from_rev()
-          << ", in branch: " << other_branch->prefix;
+          << ", in branch: " << other_branch->name;
       throw std::logic_error(buf.str());
     }
 
@@ -494,34 +505,37 @@ struct ConvertRepository
 #endif
   }
 
-  Git::BranchPtr prep_branch(const SvnDump::File&           dump,
-                             const boost::filesystem::path& pathname,
-                             Git::CommitPtr                 copy_from = NULL)
+  Git::CommitPtr get_commit(const SvnDump::File&           dump,
+                            const boost::filesystem::path& pathname,
+                            Git::CommitPtr                 copy_from = NULL)
   {
-    Git::BranchPtr current_branch(find_branch(pathname));
+    Git::BranchPtr branch(find_branch(pathname));
+    Git::CommitPtr commit(branch->next_commit);
+    if (commit)
+      return commit;
 
-    if (! current_branch->commit) {
+    if (branch->commit) {
+      commit = branch->next_commit = branch->commit->clone();
+    } else {
       // If the first action is a dir/add/copyfrom, then this will get
       // set correctly, otherwise it's a parentless branch, which is
       // also OK.
-      commit = copy_from ? copy_from->clone(true) : repository.create_commit();
-      commit->set_prefix(current_branch->prefix);
+      commit = branch->next_commit = (copy_from ? copy_from->clone(true) :
+                                      repository.create_commit());
 
-      status.info(std::string("Found new branch ") + current_branch->name);
-    } else {
-      commit = current_branch->commit->clone();
+      status.info(std::string("Found new branch ") + branch->name);
     }
-    current_branch->commit = commit; // don't update just yet
+    commit->branch = branch;
 
     // Setup the author and commit comment
-    std::string author_id(dump.get_rev_author());
-    authors_map::iterator i = authors.find(author_id);
-    if (i != authors.end()) {
+    std::string           author_id(dump.get_rev_author());
+    authors_map::iterator author = authors.find(author_id);
+    if (author != authors.end()) {
       // jww (2011-01-27): What about timezones?
-      commit->set_author((*i).second.name, (*i).second.email,
+      commit->set_author((*author).second.name, (*author).second.email,
                          dump.get_rev_date());
     } else {
-      unrecognized.insert(author_id);
+      unrecognized_authors.insert(author_id);
       commit->set_author(author_id, "", dump.get_rev_date());
     }
 
@@ -543,36 +557,57 @@ struct ConvertRepository
              
     commit->set_message(buf.str());
 
-    return current_branch;
+    commit_queue.push_back(commit);
+
+    return commit;
   }
 
-  void write_last_commit()
+  void flush_commit_queue()
   {
-    if (commit) {
-      // If no activity was seen in the previous revision, don't build
-      // a commit and just reuse the preceding commit object (if there
-      // is one yet)
-      if (activity && ! opts.dry_run) {
-        commit->write();
-#ifdef READ_FROM_DISK
-        branch->rev_map.insert
-          (Git::Branch::revs_value(last_rev, commit->get_oid()));
-#else
-        branch->rev_map.insert(Git::Branch::revs_value(last_rev, commit));
-#endif
-      }
+    for (std::vector<Git::CommitPtr>::iterator i = commit_queue.begin();
+         i != commit_queue.end();
+         ++i) {
+      if ((*i)->is_modified()) {
+        assert(*i == (*i)->branch->next_commit);
+        (*i)->branch->next_commit.reset();
 
-      commit = NULL;
+        if ((*i)->has_tree()) {
+          // Only now does the commit get associated with its branch
+          (*i)->branch->commit = *i;
+          (*i)->write();
+
+#ifdef READ_FROM_DISK
+          (*i)->branch->rev_map.insert
+            (Git::Branch::revs_value(last_rev, (*i)->get_oid()));
+#else
+          (*i)->branch->rev_map.insert(Git::Branch::revs_value(last_rev, *i));
+#endif
+        } else {
+          Git::BranchPtr branch((*i)->branch);
+
+          deleted_branches.push_back(branch);
+          
+          for (branches_map::iterator b = branches.begin();
+               b != branches.end();
+               ++b)
+            if (branch == (*b).second) {
+              (*b).second = new Git::Branch(*branch);
+              break;
+            }
+        }
+      } else {
+        (*i)->branch->next_commit.reset();
+      }
     }
-    activity = false;
+    commit_queue.clear();
   }
 
-  void operator()(const SvnDump::File&       dump,
-                  const SvnDump::File::Node& node) {
+  void operator()(const SvnDump::File& dump, const SvnDump::File::Node& node)
+  {
     const int rev = dump.get_rev_nr();
     if (rev != last_rev) {
       status.update(rev);
-      write_last_commit();
+      flush_commit_queue();
       last_rev = rev;
     }
 
@@ -582,21 +617,18 @@ struct ConvertRepository
 
     SvnDump::File::Node::Kind   kind   = node.get_kind();
     SvnDump::File::Node::Action action = node.get_action();
-    Git::CommitPtr              past_commit;
 
-    if (node.has_copy_from())
-      past_commit = find_past_commit(node);
- 
     if (kind == SvnDump::File::Node::KIND_FILE &&
         (action == SvnDump::File::Node::ACTION_ADD ||
          action == SvnDump::File::Node::ACTION_CHANGE)) {
-      if (! commit) {
-        branch = prep_branch(dump, pathname);
-        commit = branch->commit;
-      }
+      status.info(std::string("file.") +
+                  (action == SvnDump::File::Node::ACTION_ADD ?
+                   "add" : "change") + ": " + pathname.string());
 
-      if (past_commit) {
-        Git::ObjectPtr obj = past_commit->lookup(node.get_copy_from_path());
+      Git::CommitPtr commit(get_commit(dump, pathname));
+      if (node.has_copy_from()) {
+        Git::CommitPtr past_commit(get_past_commit(node));
+        Git::ObjectPtr obj(past_commit->lookup(node.get_copy_from_path()));
         if (! obj) {
           status.warn("Could not find object in the following commit tree:");
           past_commit->dump_tree(std::cerr);
@@ -612,62 +644,53 @@ struct ConvertRepository
                                               node.get_text() : "",
                                               node.get_text_length()));
       }
-      activity = true;
     }
     else if (action == SvnDump::File::Node::ACTION_DELETE) {
-      if (! commit) {
-        branch = prep_branch(dump, pathname);
-        commit = branch->commit;
-      }
-      commit->remove(pathname);
-      activity = true;
+      status.info(std::string(".delete: ") + pathname.string());
+
+      get_commit(dump, pathname)->remove(pathname);
     }
-    else if (kind   == SvnDump::File::Node::KIND_DIR   &&
-             action == SvnDump::File::Node::ACTION_ADD && past_commit) {
-      bool new_commit = false;
-      if (! commit) {
-        branch = prep_branch(dump, pathname, past_commit);
-        commit = branch->commit;
-        new_commit = true;
-      }
+    else if (node.has_copy_from() &&
+             kind   == SvnDump::File::Node::KIND_DIR   &&
+             action == SvnDump::File::Node::ACTION_ADD) {
+      status.info(std::string("dir.add: ") +
+                  node.get_copy_from_path().string() + " -> " +
+                  pathname.string());
 
-#if 0
-      std::cerr << "dir add, copy from: " << node.get_copy_from_path()
-                << std::endl;
-      std::cerr << "dir add, copy to:   " << pathname << std::endl;
-#endif
-
-      if (Git::ObjectPtr obj =
-          past_commit->lookup(node.get_copy_from_path())) {
-        commit->update(pathname,
-                       obj->copy_to_name(pathname.filename().string()));
-        activity = true;
-      }
-      else if (new_commit) {
-        commit = NULL;          // ignore this commit
-      }
+      Git::CommitPtr past_commit(get_past_commit(node));
+      if (Git::ObjectPtr obj = past_commit->lookup(node.get_copy_from_path()))
+        get_commit(dump, pathname, past_commit)
+          ->update(pathname, obj->copy_to_name(pathname.filename().string()));
     }
   }
 
-  void report(std::ostream&) {
-    if (! opts.dry_run) {
-      if (commit) {
-        if (activity)
-          commit->write();
-        commit = NULL;
-      }
+  void report(std::ostream&)
+  {
+    flush_commit_queue();
 
-      for (branches_vector::iterator i = branches.begin();
-           i != branches.end();
-           ++i)
-        (*i)->update(repository, (*i)->commit);
-      default_branch->update(repository, default_branch->commit);
-    }
-
-    for (std::set<std::string>::const_iterator i = unrecognized.begin();
-         i != unrecognized.end();
+    for (branches_map::iterator i = branches.begin();
+         i != branches.end();
          ++i)
-      status.warn(std::string("Unrecognized author: ") + *i);
+      if ((*i).second->commit)
+        (*i).second->update(repository);
+
+    for (std::vector<Git::BranchPtr>::iterator i = deleted_branches.begin();
+         i != deleted_branches.end();
+         ++i)
+      // jww (2011-01-29): Push deleted branches onto a tag
+      std::cerr << "Deleted branch: " << (*i)->name << std::endl;
+
+    bool newline_output = false;
+    for (std::set<std::string>::const_iterator
+           i = unrecognized_authors.begin();
+         i != unrecognized_authors.end();
+         ++i) {
+      if (! newline_output) {
+        status.newline();
+        newline_output = true;
+      }
+      std::cerr << "Unrecognized author id: " << *i << std::endl;
+    }
 
     status.finish();
   }
@@ -706,8 +729,8 @@ int main(int argc, char *argv[])
           opts.verbose = true;
         else if (std::strcmp(&argv[i][2], "debug") == 0)
           opts.debug = 1;
-        else if (std::strcmp(&argv[i][2], "dry-run") == 0)
-          opts.dry_run = true;
+        else if (std::strcmp(&argv[i][2], "cutoff") == 0)
+          opts.cutoff = std::atoi(argv[++i]);
         else if (std::strcmp(&argv[i][2], "authors") == 0)
           opts.authors_file = argv[++i];
         else if (std::strcmp(&argv[i][2], "branches") == 0)
@@ -715,8 +738,6 @@ int main(int argc, char *argv[])
         else if (std::strcmp(&argv[i][2], "modules") == 0)
           opts.modules_file = argv[++i];
       }
-      else if (std::strcmp(&argv[i][1], "n") == 0)
-        opts.dry_run = true;
       else if (std::strcmp(&argv[i][1], "v") == 0)
         opts.verbose = true;
       else if (std::strcmp(&argv[i][1], "d") == 0)
@@ -762,7 +783,9 @@ int main(int argc, char *argv[])
 
     Git::Branch branch("feature");
     std::cerr << "Updating feature branch..." << std::endl;
-    branch.update(repo, commit);
+    branch.commit = commit;
+    commit->write();
+    branch.update(repo);
 
     std::cerr << "Cloning commit..." << std::endl;
     commit = commit->clone();   // makes a new commit based on the old one
@@ -774,7 +797,9 @@ int main(int argc, char *argv[])
 
     Git::Branch master("master");
     std::cerr << "Updating master branch..." << std::endl;
-    master.update(repo, commit);
+    master.commit = commit;
+    commit->write();
+    master.update(repo);
 
     return 0;
   }
@@ -811,6 +836,8 @@ int main(int argc, char *argv[])
     while (dump.read_next(/* ignore_text= */ false,
                           /* verify=      */ opts.verify)) {
       status.set_last_rev(dump.get_last_rev_nr());
+      if (opts.cutoff && dump.get_rev_nr() > opts.cutoff)
+        break;
       converter(dump, dump.get_curr_node());
     }
     converter.report(std::cout);

@@ -125,6 +125,13 @@ namespace Git
       return false;
     }
 
+    virtual bool is_modified() const {
+      return false;
+    }
+    virtual bool is_written() const {
+      return git_object_id(git_obj);
+    }
+
     virtual ObjectPtr copy_to_name(const std::string& to_name) = 0;
 
     virtual void write() = 0;
@@ -179,7 +186,8 @@ namespace Git
     bool        modified;
 
     ObjectPtr do_lookup(boost::filesystem::path::iterator segment,
-                        boost::filesystem::path::iterator end) {
+                        boost::filesystem::path::iterator end)
+    {
       std::string name = (*segment).string();
 
       entries_map::iterator i = entries.find(name);
@@ -221,6 +229,13 @@ namespace Git
       return true;
     }
 
+    virtual bool is_modified() const {
+      return modified;
+    }
+    virtual bool is_written() const {
+      return written && ! modified;
+    }
+
     virtual ObjectPtr copy_to_name(const std::string& to_name) {
       TreePtr new_tree(new Tree(*this));
       new_tree->name = to_name;
@@ -249,16 +264,18 @@ namespace Git
   };
 
   typedef boost::intrusive_ptr<Commit> CommitPtr;
+  typedef boost::intrusive_ptr<Branch> BranchPtr;
 
   class Commit : public Object
   {
     friend class Repository;
 
   protected:
-    TreePtr                 tree;
-    boost::filesystem::path prefix;
+    TreePtr tree;
 
   public:
+    BranchPtr branch;
+
     Commit(Repository * repo, git_commit * commit,
            const std::string& name = "", int attributes = 0040000)
       : Object(repo, reinterpret_cast<git_object *>(commit),
@@ -274,6 +291,12 @@ namespace Git
     virtual bool is_tree() const {
       return false;
     }
+
+    virtual bool is_modified() const {
+      return tree && tree->is_modified();
+    }
+
+    bool has_tree() const;
 
     virtual ObjectPtr copy_to_name(const std::string& to_name) {
       CommitPtr new_commit(clone(true));
@@ -304,7 +327,8 @@ namespace Git
     }
 
     void set_author(const std::string& name, const std::string& email,
-                    time_t time) {
+                    time_t time)
+    {
       git_signature * signature =
         git_signature_new(name.c_str(), email.c_str(), time, 0);
       if (! signature)
@@ -312,10 +336,6 @@ namespace Git
 
       git_commit_set_author(*this, signature);
       git_commit_set_committer(*this, signature);
-    }
-
-    void set_prefix(const boost::filesystem::path& _prefix) {
-      prefix = _prefix;
     }
 
     ObjectPtr lookup(const boost::filesystem::path& pathname) {
@@ -333,8 +353,6 @@ namespace Git
     }
   };
 
-  typedef boost::intrusive_ptr<Branch> BranchPtr;
-
   class Branch
   {
   public:
@@ -349,10 +367,14 @@ namespace Git
     boost::filesystem::path prefix;
     bool                    is_tag;
     CommitPtr               commit;
+    CommitPtr               next_commit;
     revs_map                rev_map;
 
     Branch(const std::string& _name = "master")
-      : name(_name), is_tag(false), commit(NULL), refc(0) {}
+      : name(_name), is_tag(false), refc(0) {}
+    Branch(const Branch& other)
+      : name(other.name), prefix(other.prefix),
+        is_tag(other.is_tag), refc(0) {}
     ~Branch() {
       assert(refc == 0);
     }
@@ -369,7 +391,7 @@ namespace Git
         boost::checked_delete(this);
     }
 
-    void update(Repository& repository, CommitPtr commit);
+    void update(Repository& repository);
 
     friend inline void intrusive_ptr_add_ref(Branch * obj) {
       obj->acquire();
@@ -402,7 +424,8 @@ namespace Git
 
     BlobPtr create_blob(const std::string& name,
                         const char * data, std::size_t len,
-                        int attributes = 0100644) {
+                        int attributes = 0100644)
+    {
       git_blob * git_blob;
 
       if (git_blob_new(&git_blob, repo) != 0)
@@ -419,7 +442,8 @@ namespace Git
       return blob;
     }
 
-    TreePtr create_tree(const std::string& name = "", int attributes = 040000) {
+    TreePtr create_tree(const std::string& name = "", int attributes = 040000)
+    {
       git_tree * git_tree;
       if (git_tree_new(&git_tree, repo) != 0)
         throw std::logic_error("Could not create Git tree");
@@ -429,7 +453,8 @@ namespace Git
       return tree;
     }
 
-    CommitPtr create_commit() {
+    CommitPtr create_commit()
+    {
       git_commit * git_commit;
       if (git_commit_new(&git_commit, repo) != 0)
         throw std::logic_error("Could not create Git commit");
@@ -470,7 +495,8 @@ namespace Git
       }
     };
 
-    commit_iterator commits_begin() {
+    commit_iterator commits_begin()
+    {
       commit_iterator start;
       git_revwalk *   walk;
 
