@@ -326,9 +326,10 @@ struct ConvertRepository
                    Git::BranchPtr>          branches_map;
   typedef branches_map::value_type          branches_value;
 
+  const SvnDump::File&        dump;
+  Git::Repository&            repository;
   StatusDisplay&              status;
   Options                     opts;
-  Git::Repository&            repository;
   int                         last_rev;
   int                         rev;
   std::vector<Git::TreePtr>   rev_trees;
@@ -337,12 +338,19 @@ struct ConvertRepository
   std::set<std::string>       unrecognized_authors;
   branches_map                branches;
   std::vector<Git::CommitPtr> commit_queue;
-  Git::BranchPtr              default_branch;
+  Git::BranchPtr              master_branch;
+  Git::BranchPtr              orphan_branch;
 
-  ConvertRepository(Git::Repository& _repository, StatusDisplay& _status,
-                    const Options& _opts = Options())
-    : status(_status), opts(_opts), repository(_repository),
-      last_rev(-1), default_branch(new Git::Branch()) {}
+  ConvertRepository(const SvnDump::File& _dump,
+                    Git::Repository&     _repository,
+                    StatusDisplay&       _status,
+                    const Options&       _opts = Options())
+    : dump(_dump), repository(_repository), status(_status), opts(_opts),
+      last_rev(-1), master_branch(new Git::Branch("flat-history")),
+      orphan_branch(new Git::Branch("orphan-history")) {
+    master_branch->is_tag = true;
+    orphan_branch->is_tag = true;
+  }
 
   void load_authors(const boost::filesystem::path& pathname)
   {
@@ -369,6 +377,8 @@ struct ConvertRepository
           break;
         case 1:
           author.name = p;
+          if (author.name == "Unknown")
+            author.name = author_id;
           break;
         case 2: {
           char buf[256];
@@ -489,7 +499,7 @@ struct ConvertRepository
     buf << "Could not find branch for " << pathname << " in r" << rev;
     status.warn(buf.str());
 
-    return default_branch;
+    return orphan_branch;
   }
 
   Git::TreePtr get_past_tree(const SvnDump::File::Node& node)
@@ -510,8 +520,7 @@ struct ConvertRepository
     throw std::logic_error(buf.str());
   }
 
-  Git::CommitPtr get_commit(const SvnDump::File&           dump,
-                            const boost::filesystem::path& pathname)
+  Git::CommitPtr get_commit(const boost::filesystem::path& pathname)
   {
     Git::BranchPtr branch(find_branch(pathname));
     Git::CommitPtr commit(branch->next_commit);
@@ -531,7 +540,10 @@ struct ConvertRepository
       // also OK.
       commit = branch->next_commit = repository.create_commit();
 
-      if (opts.verbose) {
+      if (! dump.get_curr_node().has_copy_from())
+        status.info(std::string("Branch starts out empty: ") + branch->name);
+
+      if (opts.debug) {
         std::ostringstream buf;
         buf << "Branch start r" << rev << ": " << branch->name;
         if (dump.get_curr_node().has_copy_from()) {
@@ -540,11 +552,20 @@ struct ConvertRepository
           buf << " (from r" << dump.get_curr_node().get_copy_from_rev()
               << ' ' << other_branch->name << ')';
         }
-        status.info(buf.str());
+        status.debug(buf.str());
       }
     }
     commit->branch = branch;
 
+    set_commit_info(commit);
+
+    commit_queue.push_back(commit);
+
+    return commit;
+  }
+
+  void set_commit_info(Git::CommitPtr commit)
+  {
     // Setup the author and commit comment
     std::string           author_id(dump.get_rev_author());
     authors_map::iterator author = authors.find(author_id);
@@ -572,41 +593,47 @@ struct ConvertRepository
           << '\n';
     buf << "SVN-Revision: " << rev;
     commit->set_message(buf.str());
-
-    commit_queue.push_back(commit);
-
-    return commit;
   }
 
   void flush_commit_queue()
   {
+    int branches_modified = 0;
     for (std::vector<Git::CommitPtr>::iterator i = commit_queue.begin();
          i != commit_queue.end();
          ++i) {
-      if (! (*i)->is_modified())
+      if (! (*i)->is_modified()) {
+        if (opts.debug) {
+          std::ostringstream buf;
+          buf << "Commit for r" << rev << " had no Git-visible modifications";
+          status.debug(buf.str());
+        }
         continue;
+      }
 
       assert(*i == (*i)->branch->next_commit);
       (*i)->branch->next_commit.reset();
 
       if ((*i)->has_tree()) {
-#if 0
-        std::ostringstream buf;
-        buf << "Tree " << (*i)->tree.get() << " for commit in r" << last_rev << ":";
-        status.warn(buf.str());
-        (*i)->dump_tree(std::cerr);
-#endif
+        if (opts.debug) {
+          std::ostringstream buf;
+          buf << "Writing commit for r" << rev
+              << " on branch " << (*i)->branch->name;
+          status.debug(buf.str());
+        }
+
         // Only now does the commit get associated with its branch
         (*i)->branch->last_rev = rev;
         (*i)->branch->commit   = *i;
         (*i)->write();
+
+        ++branches_modified;
       } else {
         Git::BranchPtr branch((*i)->branch);
 
-        if (opts.verbose) {
+        if (opts.debug) {
           std::ostringstream buf;
           buf << "Branch end r" << rev << ": " << branch->name;
-          status.info(buf.str());
+          status.debug(buf.str());
         }
         branch->last_rev = rev;
 
@@ -616,102 +643,153 @@ struct ConvertRepository
           // history is preserved.
           std::ostringstream buf;
           buf << branch->name << "__deleted_r" << rev;
-          repository.create_tag((*i)->branch->commit, buf.str());
+          std::string tag_name(buf.str());
+          repository.create_tag((*i)->branch->commit, tag_name);
+          status.debug(std::string("Wrote tag ") + tag_name);
         }
           
         for (branches_map::iterator b = branches.begin();
              b != branches.end();
-             ++b)
+             ++b) {
           if (branch == (*b).second) {
             (*b).second = new Git::Branch(*branch);
             break;
           }
+        }
       }
     }
     commit_queue.clear();
+
+    if (branches_modified > 1) {
+      std::ostringstream buf;
+      buf << "Revision " << rev << " modified "
+          << branches_modified << " branches";
+      status.info(buf.str());
+    }
+
+    if (branches_modified > 0) {
+      // Also add this commit
+      Git::CommitPtr master_commit =
+        (master_branch->commit ?
+         master_branch->commit->clone() : repository.create_commit());
+
+      set_commit_info(master_commit);
+
+      master_commit->tree   = rev_tree;
+      master_commit->branch = master_branch;
+      master_commit->write();
+
+      master_branch->last_rev = rev;
+      master_branch->commit   = master_commit;
+    }
+  }
+
+  void next_revision()
+  {
+    status.update(rev);
+
+    flush_commit_queue();
+
+    for (int i = static_cast<int>(rev_trees.size()) - 1; i < rev - 1; ++i)
+      rev_trees.push_back(NULL);
+
+    if (rev_tree)
+      rev_tree = rev_tree->copy();
+    else
+      rev_tree = repository.create_tree();
+    rev_trees.push_back(rev_tree);
+  }
+
+  bool add_file(const SvnDump::File::Node& node)
+  {
+    boost::filesystem::path pathname(node.get_path());
+
+    status.debug(std::string("file.") +
+                 (node.get_action() == SvnDump::File::Node::ACTION_ADD ?
+                  "add" : "change") + ": " + pathname.string());
+
+    Git::ObjectPtr obj;
+    if (node.has_copy_from()) {
+      Git::TreePtr past_tree(get_past_tree(node));
+      obj = past_tree->lookup(node.get_copy_from_path());
+      if (! obj) {
+        std::ostringstream buf;
+        buf << "Could not find " << node.get_copy_from_path()
+            << " in tree r" << node.get_copy_from_rev() << ":";
+        status.warn(buf.str());
+        past_tree->dump_tree(std::cerr);
+      }
+      assert(obj);
+      assert(obj->is_blob());
+      obj = obj->copy_to_name(pathname.filename().string());
+    } else {
+      obj = repository.create_blob(pathname.filename().string(),
+                                   node.has_text() ?
+                                   node.get_text() : "",
+                                   node.get_text_length());
+    }
+    rev_tree->update(pathname, obj);
+    return true;
+  }
+
+  bool add_directory(const SvnDump::File::Node& node)
+  {
+    boost::filesystem::path pathname(node.get_path());
+
+    status.debug(std::string("dir.add: ") +
+                 node.get_copy_from_path().string() + " -> " +
+                 pathname.string());
+
+    if (Git::ObjectPtr obj =
+        get_past_tree(node)->lookup(node.get_copy_from_path())) {
+      obj = obj->copy_to_name(pathname.filename().string());
+      rev_tree->update(pathname, obj);
+      return true;
+    }
+    return false;
+  }
+
+  bool delete_item(const SvnDump::File::Node& node)
+  {
+    boost::filesystem::path pathname(node.get_path());
+
+    status.debug(std::string(".delete: ") + pathname.string());
+
+    rev_tree->remove(pathname);
+    return true;
   }
 
   void operator()(const SvnDump::File& dump, const SvnDump::File::Node& node)
   {
     rev = dump.get_rev_nr();
     if (rev != last_rev) {
-      status.update(rev);
-
-      flush_commit_queue();
-
-      for (int i = static_cast<int>(rev_trees.size()) - 1; i < rev - 1; ++i)
-        rev_trees.push_back(NULL);
-
-      if (rev_tree)
-        rev_tree = rev_tree->copy();
-      else
-        rev_tree = repository.create_tree();
-      rev_trees.push_back(rev_tree);
-
+      next_revision();
       last_rev = rev;
     }
 
     boost::filesystem::path pathname(node.get_path());
-    if (pathname.empty())
-      return;
+    if (! pathname.empty()) {
+      SvnDump::File::Node::Kind   kind   = node.get_kind();
+      SvnDump::File::Node::Action action = node.get_action();
 
-    SvnDump::File::Node::Kind   kind   = node.get_kind();
-    SvnDump::File::Node::Action action = node.get_action();
-
-    bool set_tree = false;
-    if (kind == SvnDump::File::Node::KIND_FILE &&
-        (action == SvnDump::File::Node::ACTION_ADD ||
-         action == SvnDump::File::Node::ACTION_CHANGE)) {
-      status.debug(std::string("file.") +
-                   (action == SvnDump::File::Node::ACTION_ADD ?
-                    "add" : "change") + ": " + pathname.string());
-
-      Git::ObjectPtr obj;
-      if (node.has_copy_from()) {
-        Git::TreePtr past_tree(get_past_tree(node));
-        obj = past_tree->lookup(node.get_copy_from_path());
-        if (! obj) {
-          std::ostringstream buf;
-          buf << "Could not find " << node.get_copy_from_path()
-              << " in tree r" << node.get_copy_from_rev() << ":";
-          status.warn(buf.str());
-          past_tree->dump_tree(std::cerr);
-        }
-        assert(obj);
-        assert(obj->is_blob());
-        obj = obj->copy_to_name(pathname.filename().string());
-      } else {
-        obj = repository.create_blob(pathname.filename().string(),
-                                     node.has_text() ?
-                                     node.get_text() : "",
-                                     node.get_text_length());
+      bool set_tree = false;
+      if (kind == SvnDump::File::Node::KIND_FILE &&
+          (action == SvnDump::File::Node::ACTION_ADD ||
+           action == SvnDump::File::Node::ACTION_CHANGE)) {
+        set_tree = add_file(node);
       }
-      rev_tree->update(pathname, obj);
-      set_tree = true;
-    }
-    else if (action == SvnDump::File::Node::ACTION_DELETE) {
-      status.debug(std::string(".delete: ") + pathname.string());
-
-      rev_tree->remove(pathname);
-      set_tree = true;
-    }
-    else if (node.has_copy_from() &&
-             kind   == SvnDump::File::Node::KIND_DIR   &&
-             action == SvnDump::File::Node::ACTION_ADD) {
-      status.debug(std::string("dir.add: ") +
-                   node.get_copy_from_path().string() + " -> " +
-                   pathname.string());
-
-      if (Git::ObjectPtr obj =
-          get_past_tree(node)->lookup(node.get_copy_from_path())) {
-        obj = obj->copy_to_name(pathname.filename().string());
-        rev_tree->update(pathname, obj);
-        set_tree = true;
+      else if (action == SvnDump::File::Node::ACTION_DELETE) {
+        set_tree = delete_item(node);
       }
-    }
+      else if (node.has_copy_from() &&
+               kind   == SvnDump::File::Node::KIND_DIR   &&
+               action == SvnDump::File::Node::ACTION_ADD) {
+        set_tree = add_directory(node);
+      }
 
-    if (set_tree)
-      get_commit(dump, pathname)->set_tree(rev_tree);
+      if (set_tree)
+        get_commit(pathname)->set_tree(rev_tree);
+    }
   }
 
   void report(std::ostream&)
@@ -720,11 +798,29 @@ struct ConvertRepository
 
     for (branches_map::iterator i = branches.begin();
          i != branches.end();
-         ++i)
+         ++i) {
       if ((*i).second->commit) {
         assert((*i).second->last_rev != -1);
-        (*i).second->update(repository);
+        if ((*i).second->is_tag) {
+          repository.create_tag((*i).second->commit, (*i).second->name);
+          status.info(std::string("Wrote tag ") + (*i).second->name);
+        } else {
+          (*i).second->update(repository);
+          status.info(std::string("Wrote branch ") + (*i).second->name);
+        }
+      } else {
+        status.info(std::string("Branch ") + (*i).second->name + " is empty");
       }
+    }
+
+    if (orphan_branch->commit) {
+      repository.create_tag(orphan_branch->commit, orphan_branch->name);
+      status.info(std::string("Wrote tag ") + orphan_branch->name);
+    }
+    if (master_branch->commit) {
+      repository.create_tag(master_branch->commit, master_branch->name);
+      status.info(std::string("Wrote branch ") + master_branch->name);
+    }
 
     bool newline_output = false;
     for (std::set<std::string>::const_iterator
@@ -735,7 +831,7 @@ struct ConvertRepository
         status.newline();
         newline_output = true;
       }
-      std::cerr << "Unrecognized author id: " << *i << std::endl;
+      status.warn(std::string("Unrecognized author id: ") + *i);
     }
 
     status.finish();
@@ -865,7 +961,7 @@ int main(int argc, char *argv[])
     Git::Repository   repo(args.size() == 2 ?
                            boost::filesystem::current_path() : args[2]);
     StatusDisplay     status(std::cerr, opts, "Converting");
-    ConvertRepository converter(repo, status, opts);
+    ConvertRepository converter(dump, repo, status, opts);
 
     if (! opts.authors_file.empty() &&
         boost::filesystem::is_regular_file(opts.authors_file))
