@@ -346,11 +346,8 @@ struct ConvertRepository
                     StatusDisplay&       _status,
                     const Options&       _opts = Options())
     : dump(_dump), repository(_repository), status(_status), opts(_opts),
-      last_rev(-1), master_branch(new Git::Branch("flat-history")),
-      orphan_branch(new Git::Branch("orphan-history")) {
-    master_branch->is_tag = true;
-    orphan_branch->is_tag = true;
-  }
+      last_rev(-1), master_branch(new Git::Branch("flat-history", true)),
+      orphan_branch(new Git::Branch("orphan-history", true)) {}
 
   void load_authors(const boost::filesystem::path& pathname)
   {
@@ -423,7 +420,6 @@ struct ConvertRepository
 
       Git::BranchPtr branch(new Git::Branch);
       int            field  = 0;
-      bool           is_tag = false;
 
       for (const char * p = std::strtok(linebuf, "\t");
            p != NULL;
@@ -431,7 +427,7 @@ struct ConvertRepository
         switch (field) {
         case 0:
           if (*p == 't')
-            is_tag = true;
+            branch->is_tag = true;
           break;
         case 1: break;
         case 2: break;
