@@ -307,8 +307,10 @@ urzuga	Jaakko Järvi	jarvi<>cs~tamu~edu
 vawjr	Victor A~ Wagner Jr~	vawjr<>rudbek~com
 vertleyb	Arkadiy Vertleyb	vertleyb<>hotmail~com
 vesa_karvonen	Vesa Karvonen	vesa_karvonen<>hotmail~com
+vexocide	Unknown	
 viboes	Unknown	
 vladimir_prus	Vladimir Prus	vladimir<>codesourcery~com
+wash	Unknown	
 witt	Thomas Witt	witt<>acm~org
 wom-work	Ben Hutchings	ben<>decadentplace~org~uk
 xiaogang.zhang	Unknown	
