@@ -326,8 +326,23 @@ namespace Git
   {
     assert(commit);
     assert(commit->is_written());
-    repository.create_file(boost::filesystem::path("refs") / "heads" / name,
-                           commit->sha1());
+    repository.create_ref(commit, name);
+  }
+
+  void Repository::create_tag(CommitPtr commit, const std::string& name)
+  {
+    git_tag * tag;
+    git_check(git_tag_new(&tag, *this));
+
+    git_tag_set_target(tag, *commit);
+    git_tag_set_name(tag, name.c_str());
+    git_tag_set_tagger(tag, git_commit_author(*commit));
+    git_tag_set_message(tag, name.c_str());
+
+    git_object * git_obj(reinterpret_cast<git_object *>(tag));
+    git_check(git_object_write(git_obj));
+
+    create_ref(git_obj, name, true);
   }
 
   TreePtr Repository::read_tree(git_tree * tree_obj, const std::string& name,

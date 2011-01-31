@@ -56,6 +56,13 @@ namespace Git
       throw std::logic_error(git_strerror(result));
   }
 
+  inline std::string git_sha1(const git_oid * git_oid) {
+    char checksum[41];
+    git_oid_fmt(checksum, git_oid);
+    checksum[40] = '\0';
+    return checksum;
+  }
+
   class Object;
   class Blob;
   class Tree;
@@ -93,7 +100,7 @@ namespace Git
     git_tree_entry * tree_entry;
 
     Object(Repository * _repository, git_object * _git_obj,
-           const std::string& _name, int _attributes)
+           const std::string& _name = "", int _attributes = 0)
       : repository(_repository), git_obj(_git_obj), refc(0),
         name(_name), attributes(_attributes), tree_entry(NULL) {}
     virtual ~Object() {
@@ -112,10 +119,7 @@ namespace Git
     }
 
     std::string sha1() const {
-      char checksum[41];
-      git_oid_fmt(checksum, *this);
-      checksum[40] = '\0';
-      return checksum;
+      return git_sha1(*this);
     }
 
     virtual bool is_blob() const {
@@ -450,17 +454,20 @@ namespace Git
       return new Commit(this, git_commit);
     }
 
-    void create_tag(CommitPtr commit, const std::string& name)
+    void create_tag(CommitPtr commit, const std::string& name);
+
+    void create_ref(git_object * obj, const std::string& name,
+                    bool is_tag = false)
     {
-      git_tag * tag;
-      git_check(git_tag_new(&tag, *this));
+      create_file(boost::filesystem::path("refs")
+                  / (is_tag ? "tags" : "heads") / name,
+                  git_sha1(git_object_id(obj)));
+    }
 
-      git_tag_set_target(tag, *commit);
-      git_tag_set_name(tag, name.c_str());
-      git_tag_set_tagger(tag, git_commit_author(*commit));
-      git_tag_set_message(tag, name.c_str());
-
-      git_check(git_object_write(reinterpret_cast<git_object *>(tag)));
+    void create_ref(ObjectPtr obj, const std::string& name, bool is_tag = false)
+    {
+      create_file(boost::filesystem::path("refs")
+                  / (is_tag ? "tags" : "heads") / name, git_sha1(*obj));
     }
 
     TreePtr   read_tree(git_tree * git_tree, const std::string& name = "",
