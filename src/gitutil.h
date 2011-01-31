@@ -371,8 +371,8 @@ namespace Git
     CommitPtr               next_commit;
     int                     last_rev;
 
-    Branch(const std::string& _name = "master")
-      : name(_name), is_tag(false), last_rev(-1), refc(0) {}
+    Branch(const std::string& _name = "master", bool _is_tag = false)
+      : name(_name), is_tag(_is_tag), last_rev(-1), refc(0) {}
     Branch(const Branch& other)
       : name(other.name), prefix(other.prefix),
         is_tag(other.is_tag), last_rev(-1), refc(0) {}
