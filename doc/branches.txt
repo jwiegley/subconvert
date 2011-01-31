@@ -57,8 +57,7 @@ branch	7673	2000-08-02	4	branches/conversion	conversion
 branch	51363	2009-02-21	9	branches/cpp0x	cpp0x
 branch	8368	2000-11-30	3	branches/cursor	cursor
 branch	8236	2000-11-16	3	branches/data_driven	data_driven
-branch	62928	2010-06-14	4	branches/date_time_io_rewrite/boost/date_time	date_time_io_rewrite/boost/date_time
-branch	62928	2010-06-14	3	branches/date_time_io_rewrite/libs/date_time	date_time_io_rewrite/libs/date_time
+branch	62928	2010-06-14	4	branches/date_time_io_rewrite	date_time_io_rewrite
 branch	46062	2008-06-02	50	branches/doc	doc
 branch	8316	2000-11-24	5	branches/error_handling	error_handling
 branch	31964	2005-12-09	40	branches/fast_array_serialization	fast_array_serialization
@@ -68,12 +67,7 @@ branch	43289	2008-02-17	88	branches/fix-links	fix-links
 branch	16590	2002-12-11	8	branches/fs_review	fs_review
 branch	22682	2004-04-21	5	branches/function_signature_patches_1_31	function_signature_patches_1_31
 branch	13824	2002-05-11	4	branches/function_v2	function_v2
-branch	40383	2007-10-23	11	branches/fusion/2_1/boost/fusion	fusion/2_1/boost/fusion
-branch	40388	2007-10-24	3	branches/fusion/2_1/boost/tr1	fusion/2_1/boost/tr1
-branch	40387	2007-10-24	3	branches/fusion/2_1/boost/xpressive	fusion/2_1/boost/xpressive
-branch	40249	2007-10-21	2	branches/fusion/2_1/libs/function_types	fusion/2_1/libs/function_types
-branch	40238	2007-10-21	2	branches/fusion/2_1/libs/fusion	fusion/2_1/libs/fusion
-branch	40386	2007-10-24	3	branches/fusion/2_1/libs/xpressive	fusion/2_1/libs/xpressive
+branch	40383	2007-10-23	11	branches/fusion/2_1	fusion/2_1
 branch	24537	2004-08-17	13	branches/graph_devel	graph_devel
 branch	25775	2004-10-18	3	branches/graph_devel_1_33_0	graph_devel_1_33_0
 branch	40266	2007-10-21	17	branches/hash	hash
@@ -159,10 +153,7 @@ branch	30164	2005-07-18	2	branches/robstewart	robstewart
 branch	12128	2001-12-19	4	branches/rollback	rollback
 branch	16664	2002-12-19	11	branches/sane-testing	sane-testing
 branch	34096	2006-05-26	5	branches/serialization_header_order	serialization_header_order
-branch	49603	2008-11-05	2	branches/serialization_helper_support/boost/archive	serialization_helper_support/boost/archive
-branch	49603	2008-11-05	2	branches/serialization_helper_support/boost/serialization	serialization_helper_support/boost/serialization
-branch	49603	2008-11-05	1	branches/serialization_helper_support/libs/detail	serialization_helper_support/libs/detail
-branch	49603	2008-11-05	2	branches/serialization_helper_support/libs/serialization	serialization_helper_support/libs/serialization
+branch	49603	2008-11-05	2	branches/serialization_helper_support	serialization_helper_support
 branch	42650	2008-01-10	63	branches/serialization_next_release	serialization_next_release
 branch	8400	2000-12-08	3	branches/shared_modules	shared_modules
 branch	20904	2003-11-21	30	branches/simplify	simplify
