@@ -515,8 +515,13 @@ struct ConvertRepository
   {
     Git::BranchPtr branch(find_branch(pathname));
     Git::CommitPtr commit(branch->next_commit);
-    if (commit)
+    if (commit) {
+      std::vector<Git::CommitPtr>::iterator i =
+        std::find(commit_queue.begin(), commit_queue.end(), commit);
+      if (i == commit_queue.end())
+        commit_queue.push_back(commit);
       return commit;
+    }
 
     if (branch->commit) {
       commit = branch->next_commit = branch->commit->clone();
