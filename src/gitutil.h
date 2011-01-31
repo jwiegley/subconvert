@@ -365,12 +365,13 @@ namespace Git
     bool                    is_tag;
     CommitPtr               commit;
     CommitPtr               next_commit;
+    int                     last_rev;
 
     Branch(const std::string& _name = "master")
-      : name(_name), is_tag(false), refc(0) {}
+      : name(_name), is_tag(false), last_rev(-1), refc(0) {}
     Branch(const Branch& other)
       : name(other.name), prefix(other.prefix),
-        is_tag(other.is_tag), refc(0) {}
+        is_tag(other.is_tag), last_rev(-1), refc(0) {}
     ~Branch() {
       assert(refc == 0);
     }
@@ -423,15 +424,9 @@ namespace Git
                         int attributes = 0100644)
     {
       git_blob * git_blob;
-
-      if (git_blob_new(&git_blob, repo) != 0)
-        throw std::logic_error("Could not create Git blob");
-
-      if (git_blob_set_rawcontent(git_blob, data, len) != 0)
-        throw std::logic_error("Could not set Git blob contents");
-
-      if (git_object_write(reinterpret_cast<git_object *>(git_blob)) != 0)
-        throw std::logic_error("Could not write Git blob");
+      git_check(git_blob_new(&git_blob, repo));
+      git_check(git_blob_set_rawcontent(git_blob, data, len));
+      git_check(git_object_write(reinterpret_cast<git_object *>(git_blob)));
 
       Blob * blob = new Blob(this, git_blob, name, attributes);
       blob->repository = this;
@@ -441,8 +436,7 @@ namespace Git
     TreePtr create_tree(const std::string& name = "", int attributes = 040000)
     {
       git_tree * git_tree;
-      if (git_tree_new(&git_tree, repo) != 0)
-        throw std::logic_error("Could not create Git tree");
+      git_check(git_tree_new(&git_tree, repo));
 
       Tree * tree = new Tree(this, git_tree, name, attributes);
       tree->repository = this;
@@ -452,9 +446,21 @@ namespace Git
     CommitPtr create_commit()
     {
       git_commit * git_commit;
-      if (git_commit_new(&git_commit, repo) != 0)
-        throw std::logic_error("Could not create Git commit");
+      git_check(git_commit_new(&git_commit, repo));
       return new Commit(this, git_commit);
+    }
+
+    void create_tag(CommitPtr commit, const std::string& name)
+    {
+      git_tag * tag;
+      git_check(git_tag_new(&tag, *this));
+
+      git_tag_set_target(tag, *commit);
+      git_tag_set_name(tag, name.c_str());
+      git_tag_set_tagger(tag, git_commit_author(*commit));
+      git_tag_set_message(tag, name.c_str());
+
+      git_check(git_object_write(reinterpret_cast<git_object *>(tag)));
     }
 
     TreePtr   read_tree(git_tree * git_tree, const std::string& name = "",
@@ -496,8 +502,7 @@ namespace Git
       commit_iterator start;
       git_revwalk *   walk;
 
-      if (git_revwalk_new(&walk, repo) != 0)
-        throw std::logic_error("Could not create repository revision walker");
+      git_check(git_revwalk_new(&walk, repo));
 
       start.repo = this;
       start.walk = boost::shared_ptr<git_revwalk>(walk, git_revwalk_free);

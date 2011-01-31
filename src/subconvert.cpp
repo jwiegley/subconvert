@@ -336,7 +336,6 @@ struct ConvertRepository
   authors_map                 authors;
   std::set<std::string>       unrecognized_authors;
   branches_map                branches;
-  std::vector<Git::BranchPtr> deleted_branches;
   std::vector<Git::CommitPtr> commit_queue;
   Git::BranchPtr              default_branch;
 
@@ -356,6 +355,8 @@ struct ConvertRepository
 
     while (in.good() && ! in.eof()) {
       in.getline(linebuf, MAX_LINE);
+      if (linebuf[0] == '#')
+        continue;
 
       int         field = 0;
       std::string author_id;
@@ -399,7 +400,6 @@ struct ConvertRepository
   void load_branches(const boost::filesystem::path& pathname)
   {
     branches.clear();
-    deleted_branches.clear();
 
     static const int MAX_LINE = 8192;
     char linebuf[MAX_LINE + 1];
@@ -408,12 +408,15 @@ struct ConvertRepository
 
     while (in.good() && ! in.eof()) {
       in.getline(linebuf, MAX_LINE);
+      if (linebuf[0] == '#')
+        continue;
 
       Git::BranchPtr branch(new Git::Branch);
       int            field  = 0;
       bool           is_tag = false;
 
-      for (const char * p = std::strtok(linebuf, "\t"); p;
+      for (const char * p = std::strtok(linebuf, "\t");
+           p != NULL;
            p = std::strtok(NULL, "\t")) {
         switch (field) {
         case 0:
@@ -496,7 +499,15 @@ struct ConvertRepository
     if (other_branch->rev_map.empty())
       load_revmap();
 #endif
-    return rev_trees[node.get_copy_from_rev()];
+    // jww (2011-01-30): Go backwards if a NULL is found
+    for (int i = node.get_copy_from_rev(); i >= 0; --i)
+      if (Git::TreePtr tree = rev_trees[i])
+        return tree;
+
+    std::ostringstream buf;
+    buf << "Could not find tree for " << node.get_copy_from_path()
+        << ", r" << node.get_copy_from_rev();
+    throw std::logic_error(buf.str());
   }
 
   Git::CommitPtr get_commit(const SvnDump::File&           dump,
@@ -514,7 +525,18 @@ struct ConvertRepository
       // set correctly, otherwise it's a parentless branch, which is
       // also OK.
       commit = branch->next_commit = repository.create_commit();
-      status.info(std::string("Found new branch: ") + branch->name);
+
+      if (opts.verbose) {
+        std::ostringstream buf;
+        buf << "Branch start r" << rev << ": " << branch->name;
+        if (dump.get_curr_node().has_copy_from()) {
+          Git::BranchPtr other_branch
+            (find_branch(dump.get_curr_node().get_copy_from_path()));
+          buf << " (from r" << dump.get_curr_node().get_copy_from_rev()
+              << ' ' << other_branch->name << ')';
+        }
+        status.info(buf.str());
+      }
     }
     commit->branch = branch;
 
@@ -556,33 +578,49 @@ struct ConvertRepository
     for (std::vector<Git::CommitPtr>::iterator i = commit_queue.begin();
          i != commit_queue.end();
          ++i) {
-      if ((*i)->is_modified()) {
-        assert(*i == (*i)->branch->next_commit);
-        (*i)->branch->next_commit.reset();
+      if (! (*i)->is_modified())
+        continue;
 
-        if ((*i)->has_tree()) {
+      assert(*i == (*i)->branch->next_commit);
+      (*i)->branch->next_commit.reset();
+
+      if ((*i)->has_tree()) {
 #if 0
-          std::ostringstream buf;
-          buf << "Tree " << (*i)->tree.get() << " for commit in r" << last_rev << ":";
-          status.warn(buf.str());
-          (*i)->dump_tree(std::cerr);
+        std::ostringstream buf;
+        buf << "Tree " << (*i)->tree.get() << " for commit in r" << last_rev << ":";
+        status.warn(buf.str());
+        (*i)->dump_tree(std::cerr);
 #endif
-          // Only now does the commit get associated with its branch
-          (*i)->branch->commit = *i;
-          (*i)->write();
-        } else {
-          Git::BranchPtr branch((*i)->branch);
+        // Only now does the commit get associated with its branch
+        (*i)->branch->last_rev = rev;
+        (*i)->branch->commit   = *i;
+        (*i)->write();
+      } else {
+        Git::BranchPtr branch((*i)->branch);
 
-          deleted_branches.push_back(branch);
-          
-          for (branches_map::iterator b = branches.begin();
-               b != branches.end();
-               ++b)
-            if (branch == (*b).second) {
-              (*b).second = new Git::Branch(*branch);
-              break;
-            }
+        if (opts.verbose) {
+          std::ostringstream buf;
+          buf << "Branch end r" << rev << ": " << branch->name;
+          status.info(buf.str());
         }
+        branch->last_rev = rev;
+
+        if (branch->commit) {
+          // If the branch is to be deleted, tag the last commit on
+          // that branch with a special FOO__deleted_rXXXX name so the
+          // history is preserved.
+          std::ostringstream buf;
+          buf << branch->name << "__deleted_r" << rev;
+          repository.create_tag((*i)->branch->commit, buf.str());
+        }
+          
+        for (branches_map::iterator b = branches.begin();
+             b != branches.end();
+             ++b)
+          if (branch == (*b).second) {
+            (*b).second = new Git::Branch(*branch);
+            break;
+          }
       }
     }
     commit_queue.clear();
@@ -596,13 +634,15 @@ struct ConvertRepository
 
       flush_commit_queue();
 
-      for (int i = static_cast<int>(rev_trees.size()) - 1; i < rev; ++i) {
-        if (rev_tree)
-          rev_tree = rev_tree->copy();
-        else
-          rev_tree = repository.create_tree();
-        rev_trees.push_back(rev_tree);
-      }
+      for (int i = static_cast<int>(rev_trees.size()) - 1; i < rev - 1; ++i)
+        rev_trees.push_back(NULL);
+
+      if (rev_tree)
+        rev_tree = rev_tree->copy();
+      else
+        rev_tree = repository.create_tree();
+      rev_trees.push_back(rev_tree);
+
       last_rev = rev;
     }
 
@@ -617,9 +657,9 @@ struct ConvertRepository
     if (kind == SvnDump::File::Node::KIND_FILE &&
         (action == SvnDump::File::Node::ACTION_ADD ||
          action == SvnDump::File::Node::ACTION_CHANGE)) {
-      status.info(std::string("file.") +
-                  (action == SvnDump::File::Node::ACTION_ADD ?
-                   "add" : "change") + ": " + pathname.string());
+      status.debug(std::string("file.") +
+                   (action == SvnDump::File::Node::ACTION_ADD ?
+                    "add" : "change") + ": " + pathname.string());
 
       Git::ObjectPtr obj;
       if (node.has_copy_from()) {
@@ -645,7 +685,7 @@ struct ConvertRepository
       set_tree = true;
     }
     else if (action == SvnDump::File::Node::ACTION_DELETE) {
-      status.info(std::string(".delete: ") + pathname.string());
+      status.debug(std::string(".delete: ") + pathname.string());
 
       rev_tree->remove(pathname);
       set_tree = true;
@@ -653,9 +693,9 @@ struct ConvertRepository
     else if (node.has_copy_from() &&
              kind   == SvnDump::File::Node::KIND_DIR   &&
              action == SvnDump::File::Node::ACTION_ADD) {
-      status.info(std::string("dir.add: ") +
-                  node.get_copy_from_path().string() + " -> " +
-                  pathname.string());
+      status.debug(std::string("dir.add: ") +
+                   node.get_copy_from_path().string() + " -> " +
+                   pathname.string());
 
       if (Git::ObjectPtr obj =
           get_past_tree(node)->lookup(node.get_copy_from_path())) {
@@ -676,14 +716,10 @@ struct ConvertRepository
     for (branches_map::iterator i = branches.begin();
          i != branches.end();
          ++i)
-      if ((*i).second->commit)
+      if ((*i).second->commit) {
+        assert((*i).second->last_rev != -1);
         (*i).second->update(repository);
-
-    for (std::vector<Git::BranchPtr>::iterator i = deleted_branches.begin();
-         i != deleted_branches.end();
-         ++i)
-      // jww (2011-01-29): Push deleted branches onto a tag
-      std::cerr << "Deleted branch: " << (*i)->name << std::endl;
+      }
 
     bool newline_output = false;
     for (std::set<std::string>::const_iterator
