@@ -206,7 +206,7 @@ ktchan	Kwan Ting Chan	chankwanting<>gmail~com
 kyriales	Unknown	unknown<>boost~org
 lakeeast	Yuanming Chen	yuanming<>gmail~com
 lally.singh	Unknown	unknown<>boost~org
-latte	Andy Elvey	andy~elvey<>paradise~net~nz
+#latte	Andy Elvey	andy~elvey<>paradise~net~nz
 latte	Terence Wilson	tez<>latte~com
 lbourdev	Lubomir Bourdev	lbourdev<>adobe~com
 lcaminiti	Lorenzo Caminiti	lorcaminiti<>gmail~com
