@@ -48,13 +48,15 @@ struct Options
   bool verbose;
   int  debug;
   bool verify;
+  int  start;
   int  cutoff;
 
   boost::filesystem::path authors_file;
   boost::filesystem::path branches_file;
   boost::filesystem::path modules_file;
 
-  Options() : verbose(false), debug(0), verify(false), cutoff(0) {}
+  Options() : verbose(false), debug(0), verify(false),
+              start(0), cutoff(0) {}
 };
 
 class StatusDisplay : public boost::noncopyable
@@ -554,7 +556,6 @@ struct ConvertRepository
     commit->branch = branch;
 
     set_commit_info(commit);
-
     commit_queue.push_back(commit);
 
     return commit;
@@ -867,6 +868,8 @@ int main(int argc, char *argv[])
           opts.verbose = true;
         else if (std::strcmp(&argv[i][2], "debug") == 0)
           opts.debug = 1;
+        else if (std::strcmp(&argv[i][2], "start") == 0)
+          opts.start = std::atoi(argv[++i]);
         else if (std::strcmp(&argv[i][2], "cutoff") == 0)
           opts.cutoff = std::atoi(argv[++i]);
         else if (std::strcmp(&argv[i][2], "authors") == 0)
@@ -974,9 +977,11 @@ int main(int argc, char *argv[])
     while (dump.read_next(/* ignore_text= */ false,
                           /* verify=      */ opts.verify)) {
       status.set_last_rev(dump.get_last_rev_nr());
-      if (opts.cutoff && dump.get_rev_nr() > opts.cutoff)
+      int rev = dump.get_rev_nr();
+      if (opts.cutoff && rev > opts.cutoff)
         break;
-      converter(dump, dump.get_curr_node());
+      if (! opts.start || rev >= opts.start)
+        converter(dump, dump.get_curr_node());
     }
     converter.report(std::cout);
   }
