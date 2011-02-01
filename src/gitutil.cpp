@@ -223,8 +223,9 @@ namespace Git
         if (! obj->is_blob())
           obj->write();
 
-        git_check(git_tree_add_entry2(&obj->tree_entry, *this, *obj,
-                                      obj->name.c_str(), obj->attributes));
+        git_check(git_tree_add_entry_unsorted(&obj->tree_entry, *this, *obj,
+                                              obj->name.c_str(),
+                                              obj->attributes));
       }
 
       assert(check_size(*this));
