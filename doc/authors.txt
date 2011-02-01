@@ -63,7 +63,7 @@ cpdaniel	Carl Daniel	cpdaniel<>mvps~org
 cppljevans	Larry Evans	cppljevans<>cox-internet~com
 crowl	Unknown	
 cschladetsch	Unknown	
-cschmidt	Unknown	
+cschmidt	Christopher Schmidt	mr~chr~schmidt<>online~de
 cslittle	Chris Little	cslittle<>mac~com
 dan_marsden	Dan Marsden	danmarsden<>yahoo~co~uk
 daniel	Unknown	
