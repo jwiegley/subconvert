@@ -578,19 +578,25 @@ struct ConvertRepository
     }
 
     boost::optional<std::string> log(dump.get_rev_log());
+    int beg = 0;
     int len = 0;
     if (log) {
       len = log->length();
+      while (beg < len &&
+             ((*log)[beg] == ' '  || (*log)[beg] == '\t' ||
+              (*log)[beg] == '\n' || (*log)[beg] == '\r'))
+        ++beg;
       while ((*log)[len - 1] == ' '  || (*log)[len - 1] == '\t' ||
              (*log)[len - 1] == '\n' || (*log)[len - 1] == '\r')
         --len;
     }
 
     std::ostringstream buf;
-    if (log)
-      buf << std::string(*log, 0, len) << '\n'
+    if (log && len)
+      buf << std::string(*log, beg, len) << '\n'
           << '\n';
     buf << "SVN-Revision: " << rev;
+
     commit->set_message(buf.str());
   }
 
