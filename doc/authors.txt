@@ -323,7 +323,7 @@ spr_talk	Sanjay Rane	sanjayrane<>hotmail~com
 srajko	Stjepan Rajko	stjepan~rajko<>gmail~com
 stefan	Stefan Seefeld	seefeld<>sympatico~ca
 stefans	Stefan Strasser	strasser<>uni-bremen~de
-stephan.diederich	Unknown	unknown<>boost~org
+stephan.diederich	Stephan Diederich	stephan~diederich<>googlemail~com
 steven_watanabe	Steven Watanabe	watanabesj<>gmail~com
 straszheim	Troy D~ Straszheim	troy<>resophonic~com
 studoot	Stuart Dootson	stuart~dootson<>gmail~com
