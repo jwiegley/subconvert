@@ -16,7 +16,7 @@ anthonyw	Anthony Williams	anthony~ajw<>gmail~com
 asundman	Unknown	
 asutton	Andrew Sutton	andrew~n~sutton<>gmail~com
 asydorchuk	Unknown	
-atompkins	Unknown	
+atompkins	Andy Tompkins	atompkins<>fastmail~fm
 az_sw_dude	Jeff Garland	jeff<>crystalclearsoftware~com
 baraclese	Unknown	
 barendgehrels	Unknown	
@@ -25,8 +25,8 @@ beman	Beman Dawes	bdawes<>acm~org
 beman_dawes	Beman Dawes	bdawes<>acm~org
 bemandawes	Beman Dawes	bdawes<>acm~org
 ben_hanson	Ben Hanson	jamin~hanson<>googlemail~com
-bernhard.reiter	Unknown	
-bernhard_reiter	Unknown	
+bernhard.reiter	Bernhard Reiter	ockham<>gmx~net
+bernhard_reiter	Bernhard Reiter	ockham<>gmx~net
 bgreen	Unknown	
 bgubenko	Boris Gubenko	boris~gubenko<>hp~com
 bhy	Unknown	
@@ -47,11 +47,11 @@ burbelgruff	Peder Holt	peder~holt<>gmail~com
 carlos_p_coelho	Carlos Pinto Coelho	cfspc<>altrabroadband~com
 cepstein	Caleb Epstein	caleb~epstein<>gmail~com
 cgc	Christopher Currie	christopher<>currie~com
-chadnelson	Unknown	
+chadnelson	Chad Nelson	chad~thecomfychair<>gmail~com
 chenderson	Unknown	
 chenry	Unknown	
 chhenning	Unknown	
-chintanraoh	Unknown	
+chintanraoh	Chintan Raoh	chintanraoh<>gmail~com
 chris_hite	Unknown	
 chris_kohlhoff	Christopher M~ Kohlhoff	chris<>kohlhoff~com
 chrisj	Unknown	
@@ -66,7 +66,7 @@ cschladetsch	Unknown
 cschmidt	Christopher Schmidt	mr~chr~schmidt<>online~de
 cslittle	Chris Little	cslittle<>mac~com
 dan_marsden	Dan Marsden	danmarsden<>yahoo~co~uk
-daniel	Unknown	
+daniel	Daniel James	dnljms<>gmail~com
 daniel_egloff	Daniel Egloff	daniel~egloff<>zkb~ch
 daniel_frey	Daniel Frey	d~frey<>gmx~de
 daniel_wallin	Daniel Wallin	daniel<>boostpro~com
@@ -90,12 +90,12 @@ djowel	Joel de Guzman	djowel<>gmail~com
 djwalker	Unknown	
 dlwalker	Daryle L~ Walker	darylew<>hotmail~com
 dramatec	Jim Douglas	jim<>dramatec~co~uk
-drrngrvy	Unknown	
+drrngrvy	Darren Garvey	darren~garvey<>gmail~com
 dshevchenko	Unknown	
 e_r	Unknown	
 ebf	Eric Friedman	ebf<>users~sourceforge~net
 eckhardt	Unknown	
-eldiener	Unknown	
+eldiener	Edward Diener	eldiener<>tropicsoft~com
 emildotchevski	Emil Dotchevski	emil<>revergestudios~com
 eric	Unknown	
 eric_niebler	Eric Niebler	eric<>boostpro~com
@@ -114,7 +114,7 @@ giovannibajo	Giovanni Bajo	giovannibajo<>libero~it
 glassfordm	Michael Glassford	glassfordm<>hotmail~com
 glynos	Unknown	
 gmelquio	Guillaume Melquiond	guillaume~melquiond<>ens-lyon~fr
-gordon.woodhull	Unknown	
+gordon.woodhull	Gordon Woodhull	gordon<>woodhull~com
 grafik	René Rivera	grafik<>redshift-software~com
 guwi17	Gunter Winkler	guwi17<>gmx~de
 gwpowell	Gary Powell	powellg<>amazon~com
@@ -202,16 +202,16 @@ matiascape	Matias Capeletto	matias~capeletto<>gmail~com
 matt_calabrese	Matthew Calabrese	rivorus<>gmail~com
 matthew.calabrese	Unknown	
 matthiasschabel	Matthias Christian Schabel	boost<>schabel-family~org
-matus.chochlik	Unknown	
+matus.chochlik	Matus Chochlik	chochlik<>gmail~com
 maxime2	Unknown	
 mbergal	Misha Bergal	mbergal<>meta-comm~com
 mcecchetti	Unknown	
 mclow	Marshall Clow	marshall<>idio~com
 mconsoni	Unknown	
 memring	Pavol Droba	droba<>topmail~sk
-mgaunard	Unknown	
+mgaunard	Mathias Gaunard	mathias~gaunard<>ens-lyon~org
 michel_andre	Unknown	
-mikhailberis	Unknown	
+mikhailberis	Dean Michael Berris	mikhailberis<>gmail~com
 mistevens	Michael Stevens	mail<>michael-stevens~de
 mloskot	Mateusz Loskot	mateusz<>loskot~net
 mmarcus	Unknown	
@@ -308,7 +308,7 @@ vawjr	Victor A~ Wagner Jr~	vawjr<>rudbek~com
 vertleyb	Arkadiy Vertleyb	vertleyb<>hotmail~com
 vesa_karvonen	Vesa Karvonen	vesa_karvonen<>hotmail~com
 vexocide	Unknown	
-viboes	Unknown	
+viboes	Vicente J. Botet Escriba	vicente~botet<>wanadoo~fr
 vladimir_prus	Vladimir Prus	vladimir<>codesourcery~com
 wash	Unknown	
 witt	Thomas Witt	witt<>acm~org
