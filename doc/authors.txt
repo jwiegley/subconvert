@@ -211,7 +211,7 @@ mconsoni	Unknown
 memring	Pavol Droba	droba<>topmail~sk
 mgaunard	Unknown	
 michel_andre	Unknown	
-mikhailberis	Unknown	
+mikhailberis	Dean Michael Berris	mikhailberis<>gmail~com
 mistevens	Michael Stevens	mail<>michael-stevens~de
 mloskot	Mateusz Loskot	mateusz<>loskot~net
 mmarcus	Unknown	
