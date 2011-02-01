@@ -402,7 +402,11 @@ struct ConvertRepository
         field++;
       }
 
-      authors.insert(authors_value(author_id, author));
+      std::pair<authors_map::iterator, bool> result =
+        authors.insert(authors_value(author_id, author));
+      if (! result.second)
+        status.warn(std::string("Author id repeated in authors file: ") +
+                    author_id);
     }
   }
 
