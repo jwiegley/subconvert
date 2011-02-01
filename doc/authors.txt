@@ -213,7 +213,7 @@ mgaunard	Unknown
 michel_andre	Unknown	
 mikhailberis	Unknown	
 mistevens	Michael Stevens	mail<>michael-stevens~de
-mloskot	Unknown	
+mloskot	Mateusz Loskot	mateusz<>loskot~net
 mmarcus	Unknown	
 mmurrett	Mac Murrett	mmurrett<>mac~com
 mrovner	Mike Rovner	mike<>bindkey~com
