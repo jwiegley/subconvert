@@ -261,7 +261,7 @@ struct FindBranches
          i != branches.end();
          ++i) {
       char buf[64];
-      struct tm * then = std::localtime(&(*i).second.last_date);
+      struct tm * then = std::gmtime(&(*i).second.last_date);
       std::strftime(buf, 63, "%Y-%m-%d", then);
 
       out << ((*i).second.changes == 1 ? "tag" : "branch") << '\t'

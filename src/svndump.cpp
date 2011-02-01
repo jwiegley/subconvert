@@ -205,7 +205,7 @@ namespace SvnDump
             else if (property == "svn:date") {
               struct tm then;
               strptime(p, "%Y-%m-%dT%H:%M:%S", &then);
-              rev_date   = std::mktime(&then);
+              rev_date   = timegm(&then);
             }
             else if (property == "svn:author")
               rev_author = p;
