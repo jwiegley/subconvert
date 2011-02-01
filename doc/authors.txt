@@ -1,71 +1,80 @@
 (no author)	Douglas Gregor	doug~gregor<>gmail~com
 aaron_windsor	Aaron Windsor	aaron~windsor<>gmail~com
 abrahams	Dave Abrahams	dave<>boostpro~com
+aconstantine	Al Constantine Ashford	constantine<>aconstantine~net
+adams	Adam Smith	unfactorable~polynomial<>gmail~com
+agarrett	Aaron Garrett	aaron~lee~garrett<>gmail~com
 agurtovoy	Aleksey Gurtovoy	agurtovoy<>meta-comm~com
 akalin	Frederick Akalin	akalin<>akalin~cx
 aliazarbayejani	Ali J~ Azarbayejani	ali<>merl~com
 alisdairm27386	Alisdair Meredith	alisdair~meredith<>uk~renaultf1~com
 alkise	Alkis Evlogimenos	alkis<>routescience~com
 alnsn	Alexander Nasonov	alnsn<>yandex~ru
-amduser	Unknown	unknown<>boost~org
+alpmestan	Alp Mestanogullari	alp<>mestan~fr
+amduser	Alexander Haro	amduser29<>gmail~com
+andre.bergner	André Bergner	andre~bergner~0<>googlemail~com
 andreas.donni	Unknown	unknown<>boost~org
-andreas_huber69	Andreas Huber	andreas_huber69<>users~sourceforge~net
-andreo	Unknown	unknown<>boost~org
+andreas_huber69	Andreas Huber	ahd6974-boostorg<>yahoo~com
+andreo	Andrey Torba	andreytorba<>gmail~com
 andysem	Andrey Semashev	andrey~semashev<>gmail~com
 anthonyw	Anthony Williams	anthony~ajw<>gmail~com
-asundman	Unknown	unknown<>boost~org
+asundman	Anders Sundman	sundman~anders<>gmail~com
 asutton	Andrew Sutton	andrew~n~sutton<>gmail~com
-asydorchuk	Unknown	unknown<>boost~org
+asydorchuk	Andrii Sydorchuk	sydorchuk~andriy<>gmail~com
 atompkins	Andy Tompkins	atompkins<>fastmail~fm
 az_sw_dude	Jeff Garland	jeff<>crystalclearsoftware~com
-baraclese	Kevin Sopp	unknown<>boost~org
-barendgehrels	Barend Gehrels	unknown<>boost~org
-bbartman	Unknown	unknown<>boost~org
+baraclese	Kevin Sopp	baraclese<>googlemail~com
+barendgehrels	Barend Gehrels	barend~gehrels<>geodan~nl
+bartholomule	Kevin Harris	bartholomule<>gmail~com
+bbartman	Brian Bartman	bbartmanboost<>gmail~com
 beman	Beman Dawes	bdawes<>acm~org
 beman_dawes	Beman Dawes	bdawes<>acm~org
 bemandawes	Beman Dawes	bdawes<>acm~org
 ben_hanson	Ben Hanson	jamin~hanson<>googlemail~com
 bernhard.reiter	Bernhard Reiter	ockham<>gmx~net
 bernhard_reiter	Bernhard Reiter	ockham<>gmx~net
-bgreen	Unknown	unknown<>boost~org
+bgreen	Bryan Green	bgreen0<>gmail~com
 bgubenko	Boris Gubenko	boris~gubenko<>hp~com
-bhy	Haoyu Bai	unknown<>boost~org
-bigcheese	Michael Spencer	unknown<>boost~org
+bhy	Haoyu Bai	divinekid<>gmail~com
+bigcheese	Michael Spencer	bigcheesegs<>gmail~com
 bill_kempf	William E~ Kempf	wekempf<>cox~net
-biochimia	João Abecasis	jpabecasis<>zmail~pt
-birbacher	Frank Birbacher	unknown<>boost~org
+biochimia	João Pedro Rocha Abecasis	jpabecasis<>gmail~com
+birbacher	Frank Birbacher	frank~birbacher<>rwth-aachen~de
 bjorn_karlsson	Björn Karlsson	Bjorn~Karlsson<>readsoft~com
 blindberg	Unknown	unknown<>boost~org
 blq	Fredrik Blomqvist	fredrik_blomqvist<>home~se
-bobwalters	Unknown	unknown<>boost~org
+bms	Bruce Simpson	bms<>incunabulum~net
+bobwalters	Bob Walters	bob~s~walters<>gmail~com
 boost_admin	Boost Administrator	boost_admin<>users~sourceforge~net
 bpeabody	Unknown	unknown<>boost~org
 brett_calcott	Brett Calcott	brett~calcott<>gmail~com
-bronf	Unknown	unknown<>boost~org
-bruno.lalande	Unknown	unknown<>boost~org
-bschaeling	Unknown	unknown<>boost~org
+bronf	Frederic Bron	frederic~bron<>alcan~com
+brook	Brook Milligan	brook<>biology~nmsu~edu
+bruno.lalande	Bruno Lalande	bruno~lalande<>gmail~com
+bschaeling	Boris Schaeling	boris<>highscore~de
 burbelgruff	Peder Holt	peder~holt<>gmail~com
 carlos_p_coelho	Carlos Pinto Coelho	cfspc<>altrabroadband~com
 cepstein	Caleb Epstein	caleb~epstein<>gmail~com
 cgc	Christopher Currie	christopher<>currie~com
 chadnelson	Chad Nelson	chad~thecomfychair<>gmail~com
-chenderson	Craig Henderson	unknown<>boost~org
-chenry	Christophe Henry	unknown<>boost~org
-chhenning	Unknown	unknown<>boost~org
+chenderson	Craig Henderson	cdm~henderson<>googlemail~com
+chenry	Christophe Henry	christophe~j~henry<>googlemail~com
+chhenning	Christian Henning	chhenning<>gmail~com
 chintanraoh	Chintan Raoh	chintanraoh<>gmail~com
-chris_hite	Christopher Hite	unknown<>boost~org
-chris_kohlhoff	Christopher M~ Kohlhoff	chris<>kohlhoff~com
-chrisj	Chris Jefferson	unknown<>boost~org
+chris_hite	Christopher Hite	c~hite<>rtsgroup~net
+chris_kohlhoff	Christopher Kohlhoff	chris<>kohlhoff~com
+chrisj	Christopher Jefferson	chris<>bubblescope~net
 cmb537	cbarrron	cmb537<>users~sourceforge~net
-cnewbold	Chris Newbold	Chris~Newbold<>mathworks~com
+cnewbold	Chris Newbold	chris~newbold<>mathworks~com
 comocomocomo	Unknown	unknown<>boost~org
 cornedbee	Sebastian Redl	sebastian~redl<>getdesigned~at
 cpdaniel	Carl Daniel	cpdaniel<>mvps~org
-cppljevans	Larry Evans	cppljevans<>cox-internet~com
-crowl	Unknown	unknown<>boost~org
-cschladetsch	Unknown	unknown<>boost~org
+cppljevans	Larry Joe Evans	cppljevans<>suddenlink~net
+crowl	Lawrence Crowl	Lawrence<>crowl~org
+cschladetsch	Christian Schladetsch	christian~schladetsch<>gmail~com
 cschmidt	Christopher Schmidt	mr~chr~schmidt<>online~de
 cslittle	Chris Little	cslittle<>mac~com
+cwagner	Christopher Wagner	c~alexander~wagner<>gmail~com
 dan_marsden	Dan Marsden	danmarsden<>yahoo~co~uk
 daniel	Daniel James	dnljms<>gmail~com
 daniel_egloff	Daniel Egloff	daniel~egloff<>zkb~ch
@@ -74,130 +83,143 @@ daniel_wallin	Daniel Wallin	daniel<>boostpro~com
 danieljames	Daniel James	dnljms<>gmail~com
 danielw	Daniel Wallin	daniel<>boostpro~com
 danmarsden	Dan Marsden	danmarsden<>yahoo~co~uk
-dannyh	Unknown	unknown<>boost~org
+dannyh	Danny Havenith	danny<>havenith~net
 darinadler	Darin Adler	darin<>bentspoon~com
-dave	Dave Abrahams	dave<>boostpro~com
+das_g	Raphael Das Gupta	svn~boost~org<>raphael~dasgupta~ch
+dave	David Abrahams	dave<>boostpro~com
 davedeakins	David Deakins	ddeakins<>veeco~com
-david.bellot	Unknown	unknown<>boost~org
+daveedvdv	Daveed Vandevoorde	daveed<>vandevoorde~com
+david.bellot	David Bellot	david~bellot<>gmail~com
 david_abrahams	Dave Abrahams	dave<>boostpro~com
 davidheld	Unknown	unknown<>boost~org
-dbarbosa	Unknown	unknown<>boost~org
+dbarbosa	Davi de Melo Jorge Barbosa	dbarbosa<>gmail~com
 dfrey42	Daniel Frey	d~frey<>gmx~de
 dgregor	Douglas Gregor	doug~gregor<>gmail~com
 diemumiee	Andreas Pokorny	andreas~pokorny<>gmail~com
 dirkgerrits	Unknown	unknown<>boost~org
 djenkins	David Jenkins	david<>jenkins~net
 djowel	Joel de Guzman	djowel<>gmail~com
-djwalker	Daniel Walker	unknown<>boost~org
-dlwalker	Daryle L~ Walker	darylew<>hotmail~com
+djowel	Joel de Guzman	joel<>boostpro~com
+djwalker	Daniel Walker	daniel~j~walker<>gmail~com
+dlwalker	Daryle Walker	dwalker07<>yahoo~com
+donginn	DongInn Kim	dikim<>osl~iu~edu
 dramatec	Jim Douglas	jim<>dramatec~co~uk
 drrngrvy	Darren Garvey	darren~garvey<>gmail~com
-dshevchenko	Unknown	unknown<>boost~org
-e_r	Unknown	unknown<>boost~org
+dshevchenko	Denis Shevchenko	for~dshevchenko<>gmail~com
+e_r	Erwann Rogard	erwann~rogard<>gmail~com
 ebf	Eric Friedman	ebf<>users~sourceforge~net
-eckhardt	Ulrich Eckhardt	unknown<>boost~org
+eckhardt	Ulrich Eckhardt	doomster<>knuut~de
 eldiener	Edward Diener	eldiener<>tropicsoft~com
 emildotchevski	Emil Dotchevski	emil<>revergestudios~com
-endecotp	Phil Endecott	unknown<>boost~org
+emmorrisonjr	Edward M~ Morrison, Jr~	emmorrisonjr<>yahoo~com
+endecotp	Phil Endecott	phil_jkrda_endecott<>chezphil~org
 eric	Unknown	unknown<>boost~org
 eric_niebler	Eric Niebler	eric<>boostpro~com
-esteve	Esteve Fernandez	unknown<>boost~org
-expaler	Unknown	unknown<>boost~org
+esteve	Esteve Fernandez	esteve~fernandez<>gmail~com
+eugene_wee	Eugene Wee	crystalrecursion<>gmail~com
+expaler	Cromwell D~ Enage	sponage<>yahoo~com
 fbarel	François Barel	frabar666<>gmail~com
 fcacciola	Fernando Cacciola	fernando~cacciola<>gmail~com
-fkonvick	Unknown	unknown<>boost~org
+federico.j.fernandez	Federico J~ Fernandez	federico~fernandez<>gmail~com
+fkonvick	Filip Konvicka	filip~konvicka<>logis~cz
 fmhess	Frank Mori Hess	fmhess<>speakeasy~net
-fotanus	Felipe de Oliveira Tanus	unknown<>boost~org
-fotanus	Unknown	unknown<>boost~org
+fotanus	Felipe de Oliveira Tanus	fotanus<>gmail~com
 ganssauge	Gottfried Ganßauge	gottfried~ganssauge<>haufe~de
-garcia	Ronald Garcia	rxg<>cs~cmu~edu
+garcia	Ronald Garcia	garcia<>osl~iu~edu
+gcracker	Graham Price	grahamprice<>gmail~com
 gennaro_prota	Gennaro Prota	gennaro~prota<>yahoo~com
-gerickson	Unknown	unknown<>boost~org
-giovanni.deretta	Unknown	unknown<>boost~org
+gerickson	Grant Erickson	gerickson<>nuovations~com
+giovanni.deretta	Giovanni Deretta	gpderetta<>gmail~com
 giovannibajo	Giovanni Bajo	giovannibajo<>libero~it
 glassfordm	Michael Glassford	glassfordm<>hotmail~com
-glynos	Unknown	unknown<>boost~org
-gmelquio	Guillaume Melquiond	guillaume~melquiond<>ens-lyon~fr
+glynos	Glyn Matthews	glyn~matthews<>gmail~com
+gmelquio	Guillaume Melquiond	guillaume~melquiond<>inria~fr
 gordon.woodhull	Gordon Woodhull	gordon<>woodhull~com
-grafik	René Rivera	grafik<>redshift-software~com
+grafik	Rene Rivera	grafikrobot<>gmail~com
 guwi17	Gunter Winkler	guwi17<>gmx~de
 gwpowell	Gary Powell	powellg<>amazon~com
-hboehm	Unknown	unknown<>boost~org
+hboehm	Hans-J~ Boehm	hans~boehm<>hp~com
 hervebronnimann	Hervé Brönnimann	hervebronnimann<>mac~com
 hevad57	David Hawkes	hevad57<>users~sourceforge~net
-hinnant	Unknown	unknown<>boost~org
+hinnant	Howard Hinnant	hinnant<>twcny~rr~com
 hkaiser	Hartmut Kaiser	hartmut~kaiser<>gmail~com
 hljin	Hailin Jin	hljin<>adobe~com
 hubert_holin	Hubert Holin	Hubert~Holin<>lmd~polytechnique~fr
-hughwimberly	Unknown	unknown<>boost~org
+hughwimberly	Hugh Wimberly	hugh~wimberly<>gmail~com
 hugoduncan	Unknown	unknown<>boost~org
-huseyinakcan	Huseyin Akcan	unknown<>boost~org
+huseyinakcan	Huseyin Akcan	huseyinakcan<>gmail~com
 igaztanaga	Ion Gaztañaga	igaztanaga<>gmail~com
 imaman	Itay Maman	itay_maman<>yahoo~com
-imikejackson	Mike Jackson	mike~jackson<>bluequartz~net
-jakevoytko	Unknown	unknown<>boost~org
-james.widman	Unknown	unknown<>boost~org
+imikejackson	Michael A~ Jackson	mike~jackson<>bluequartz~net
+jakevoytko	Jacob Voytko	JakeVoytko<>gmail~com
+james.widman	James Widman	widman<>gimpel~com
 jan_langer	Unknown	unknown<>boost~org
 jano_gaspar	Jan Gaspar	jano_gaspar<>yahoo~com
-jared	Jared McIntyre	unknown<>boost~org
+jared	Jared McIntyre	jmcintyre<>dfsoftware~com
 jbandela	John R~ Bandela	jbandela<>ufl~edu
-jbosch	Unknown	unknown<>boost~org
+jbosch	Jim Bosch	talljimbo<>gmail~com
 jbrandmeyer	Jonathan Brandmeyer	jbrandmeyer<>earthlink~net
+jczerk	John Czerkowicz	jczerk<>earthlink~net
 jdmoore99	John D~ Moore	jdmoore99<>users~sourceforge~net
-jefffaust	Unknown	unknown<>boost~org
+jefffaust	Jeffrey Faust	jeff<>opticalres~com
 jeffflinn	Jeff Flinn	TriumphSprint2000<>hotmail~com
-jeremypack	Unknown	unknown<>boost~org
+jeremypack	Jeremy Pack	oryol<>google~com
 jerrydy	Jerry Dy	jd2419<>sbc~com
-jesse	Unknown	unknown<>boost~org
-jewillco	Jeremiah J~ Willcock	jewillco<>osl~iu~edu
-jfalcou	Joel Falcou	unknown<>boost~org
-jfranklin	Unknown	unknown<>boost~org
-jgottschlich	Unknown	unknown<>boost~org
+jesse	Jesse Williamson	jesse<>mind~net
+jewillco	Jeremiah Willcock	jewillco<>osl~iu~edu
+jfalcou	Joel Falcou	joel~falcou<>lri~fr
+jfranklin	Jonathan Franklin	franklin~jonathan<>gmail~com
+jgottschlich	Justin Gottschlich	justin<>nodeka~com
 jhunold	Jürgen Hunold	juergen~hunold<>ivembh~de
-jimb	Unknown	unknown<>boost~org
-jlconlin	Unknown	unknown<>boost~org
-jll	Unknown	unknown<>boost~org
-jmaurer	Jens Maurer	Jens~Maurer<>gmx~net
-jmmv	Unknown	unknown<>boost~org
-jmoeller	Unknown	unknown<>boost~org
+jimb	Jim Bell	Jim<>JC-Bell~com
+jlconlin	Jeremy Conlin	jlconlin<>umich~edu
+jll	Jean-Louis Leroy	jl<>yorel~be
+jmaurer	Jens Maurer	jens~maurer<>gmx~net
+jmmv	Julio M~ Merino Vidal	jmmv84<>gmail~com
+jmoeller	John Moeller	fishcorn<>gmail~com
 joaquin	Joaquín M~ López Muñoz	joaquin<>tid~es
 joaquintides	Joaquín M~ López Muñoz	joaquin<>tid~es
 joerg_walter	Jörg Walter	jhr~walter<>t-online~de
-joernu76	Unknown	unknown<>boost~org
+joernu76	Joern Ungermann	j~ungermann<>fz-juelich~de
 jofaber	Joachim Faulhaber	afojgo<>gmail~com
-johan_torp	Unknown	unknown<>boost~org
+johan_torp	Johan Torp	johan~torp<>gmail~com
 john.maddock	Unknown	unknown<>boost~org
+john_phillips	John Phillips	jphillip<>capital~edu
 johnmaddock	John Maddock	john<>johnmaddock~co~uk
-jonkalb	Jon Kalb	jonkalb<>microsoft~com
-joseph.gauterin	Unknown	unknown<>boost~org
+jonkalb	Jon Kalb	jon<>kalbweb~com
+joseph.gauterin	Joseph Gauterin	joseph~gauterin<>googlemail~com
 joseph~gauterin	Joseph Gauterin	joseph~gauterin<>googlemail~com
-jsiek	Jeremy Siek	jsiek<>osl~iu~edu
+jsiek	Jeremy Siek	jeremy~siek<>gmail~com
 jsuter	Jaap Suter	boost<>jaapsuter~com
-jtorjo	Unknown	unknown<>boost~org
+jtorjo	John Torjo	john~groups<>torjo~com
 jurko	Jurko Gospodnetić	jurko~gospodnetic<>docte~hr
 kaalus	Marcin Kalicinski	kalita<>poczta~onet~pl
-karlmeerbergen	Unknown	unknown<>boost~org
-karsten	Unknown	unknown<>boost~org
+karlmeerbergen	Karl Meerbergen	karl~meerbergen<>cs~kuleuven~be
+karsten	Karsten Ahnert	karsten~ahnert<>gmx~de
 kevlin	Kevlin Henney	kevlin<>curbralan~com
-kieliszczyk	Unknown	unknown<>boost~org
-kimscheibel	Unknown	unknown<>boost~org
-klimpel	Thomas Klimpel	unknown<>boost~org
-ktchan	Kwan Ting Chan	unknown<>boost~org
+kieliszczyk	Pawel Kieliszczyk	lord~zerom1nd<>gmail~com
+kimscheibel	Kim Scheibel	kim<>scheibel~co~uk
+kirit	Kirit Sælensminde	kirit~saelensminde<>gmail~com
+klimpel	Thomas Klimpel	thomas~klimpel<>gmx~de
+krishna.achuthan	Krishna Achuthan	krishna~achuthan<>gmail~com
+ktchan	Kwan Ting Chan	chankwanting<>gmail~com
 kyriales	Unknown	unknown<>boost~org
-lakeeast	Yuanming Chen	unknown<>boost~org
+lakeeast	Yuanming Chen	yuanming<>gmail~com
 lally.singh	Unknown	unknown<>boost~org
+latte	Andy Elvey	andy~elvey<>paradise~net~nz
 latte	Terence Wilson	tez<>latte~com
 lbourdev	Lubomir Bourdev	lbourdev<>adobe~com
-lcaminiti	Lorenzo Caminiti	unknown<>boost~org
-ljsimons	Unknown	unknown<>boost~org
+lcaminiti	Lorenzo Caminiti	lorcaminiti<>gmail~com
+ljsimons	Lucanus J~ Simonson	lucanus~j~simonson<>intel~com
 llee1	Lie-Quan Lee	liequan<>slac~stanford~edu
-loonycyborg	Unknown	unknown<>boost~org
-lopezeant	Unknown	unknown<>boost~org
+loonycyborg	Sergey Popov	loonycyborg<>gmail~com
+lopezeant	Michael Lopez	mlopez7<>kent~edu
 loyso	Unknown	unknown<>boost~org
 manitou	Unknown	unknown<>boost~org
 marccromme	Unknown	unknown<>boost~org
-mariomulansky	Unknown	unknown<>boost~org
+mariomulansky	Mario Mulansky	mario~mulansky<>gmx~net
 mark_rodgers	Mark Rodgers	mark~rodgers<>cadenza~co~nz
+markus_werle	Markus Werle	numerical~simulation<>web~de
 marshall	Marshall Clow	marshall<>idio~com
 martin_wille	Martin Wille	mw8329<>yahoo~com~au
 mathiaskoch	Mathias Koch	mathiaskoch<>users~sourceforge~net
@@ -206,123 +228,139 @@ matias.capeletto	Unknown	unknown<>boost~org
 matiascape	Matias Capeletto	matias~capeletto<>gmail~com
 matt_calabrese	Matthew Calabrese	rivorus<>gmail~com
 matthew.calabrese	Unknown	unknown<>boost~org
-matthiasschabel	Matthias Christian Schabel	boost<>schabel-family~org
+matthiasschabel	Matthias Schabel	boost<>schabel-family~org
 matus.chochlik	Matus Chochlik	chochlik<>gmail~com
 maxime2	Unknown	unknown<>boost~org
 mbergal	Misha Bergal	mbergal<>meta-comm~com
-mcecchetti	Unknown	unknown<>boost~org
+mcecchetti	Marco Cecchetti	mrcekets<>gmail~com
 mclow	Marshall Clow	marshall<>idio~com
-mconsoni	Unknown	unknown<>boost~org
+mconsoni	Mariano Gabriel Consoni	mariano~consoni<>gmail~com
 memring	Pavol Droba	droba<>topmail~sk
-mgaunard	Mathias Gaunard	mathias~gaunard<>ens-lyon~org
+mgaunard	Mathias Gaunard	loufoque<>gmail~com
 michel_andre	Unknown	unknown<>boost~org
 mikhailberis	Dean Michael Berris	mikhailberis<>gmail~com
 mistevens	Michael Stevens	mail<>michael-stevens~de
-mjcaisse	Michael Caisse	unknown<>boost~org
+mjcaisse	Michael Caisse	mcaisse<>objectmodelingdesigns~com
 mloskot	Mateusz Loskot	mateusz<>loskot~net
-mmarcus	Mat Marcus	unknown<>boost~org
+mmarcus	Mat Marcus	mmarcus<>emarcus~org
 mmurrett	Mac Murrett	mmurrett<>mac~com
 mrovner	Mike Rovner	mike<>bindkey~com
 msclrhd	Reece H~ Dunn	msclrhd<>hotmail~com
-mstefanro	Unknown	unknown<>boost~org
-mumiee	Andreas Pokorny	unknown<>boost~org
-murilov	Unknown	unknown<>boost~org
-nasonov	Alexander Nasonov	alnsn<>yandex~ru
+mstefanro	Stefan Mihaila	mstefanro<>gmail~com
+mumiee	Andreas Pokorny	andreas~pokorny<>gmail~com
+murilov	Murilo Adriano Vasconcelos	muriloufg<>gmail~com
+nasonov	Alexander Nasonov	Alexander~Nasonov<>gs~com
 nbecker	Neal D~ Becker	ndbecker2<>gmail~com
-neilgroves	Unknown	unknown<>boost~org
-nesotto	Thorsten Jørgen Ottosen	nesotto<>cs~auc~dk
-ngedmond	Nick Edmonds	ngedmond<>cs~indiana~edu
-nickstoughton	Unknown	unknown<>boost~org
+neilgroves	Neil Groves	neil<>grovescomputing~com
+nesotto	Thorsten Jørgen Ottosen	nesotto<>cs~aau~dk
+ngedmond	Nicholas Edmonds	ngedmond<>cs~indiana~edu
+nickstoughton	Nick Stoughton	nick<>usenix~org
 nicoddemus	Bruno da Silva de Oliveira	nicodemus<>globalite~com~br
-niels_dekker	Niels Dekker	dekkerware<>xs4all~nl
-nielsdekker	Niels Dekker	dekkerware<>xs4all~nl
+niels_dekker	Niels Dekker	nielsdekker<>xs4all~nl
+nielsdekker	Niels Dekker	nielsdekker<>xs4all~nl
 nikiml	Nikolay Mladenov	nikolay~mladenov<>gmail~com
 nimnul	Andrey Melnikov	melnikov<>simplexsoft~com
 nksauter	Nicholas K~ Sauter	nksauter<>lbl~gov
+nliber	Nevin Liber	nevin<>eviloverlord~com
 nmotgi	Nitin Jeevan Motgi	nitin~motgi<>gmail~com
-nmusatti	Nicola Musatti	Nicola~Musatti<>gmail~com
+nmusatti	Nicola Musatti	nicola~musatti<>gmail~com
+no-maintainer	No Maintainer	boost-no-maintainer<>idio~com
 noel_belcourt	K~ Noel Belcourt	kbelco<>sandia~gov
 nuffer	Daniel Nuffer	dan-boost<>nuffer~name
-olli	Oliver Kowalke	k-oli<>gmx~de
+olli	Oliver Kowalke	oliver~kowalke<>gmx~de
+paolog	Paul Giaccone	paulg<>cinesite~co~uk
 pavol_droba	Pavol Droba	droba<>topmail~sk
-pbouchard	Unknown	unknown<>boost~org
-pbristow	Paul A~ Bristow	unknown<>boost~org
-pdimov	Peter Dimov	pdimov<>mmltd~net
+pbouchard	Phil Bouchard	phil<>fornux~com
+pbristow	Paul A~ Bristow	pbristow<>hetp~u-net~com
+pdimov	Peter Dimov	pdimov<>boostpro~com
 pedro_ferreira	Pedro Ferreira	pedro~ferreira<>mog-solutions~com
 peti	Unknown	unknown<>boost~org
 pfg23	Unknown	unknown<>boost~org
-pgarofalo	Unknown	unknown<>boost~org
-pjfoley	Peter Foley	unknown<>boost~org
+pgarofalo	Philip Garofalo	philgarofalo<>gmail~com
+phorgan1	Patrick Horgan	phorgan1<>yahoo~com
+pjfoley	Peter Foley	peter<>ifoley~id~au
 pmenso57	Paul Mensonides	pmenso57<>comcast~net
-psiha	Domagoj Šarić	unknown<>boost~org
+porterj	Jim Porter	porterj<>alum~rit~edu
+psiha	Domagoj Saric	dsaritz<>gmail~com
 pvozenilek	Pavel Vozenilek	pavel_vozenilek<>hotmail~com
-qrng	Unknown	unknown<>boost~org
+qrng	Justinas Vygintas Daugmaudis	jvd<>tja~lt
+raila	David Raila	raila<>illinois~edu
 ramey	Robert Ramey	ramey<>rrsd~com
+rani_sharoni	Rani Sharoni	rani_sharoni<>hotmail~com
 raoulgough	Raoul Gough	RaoulGough<>yahoo~co~uk
+rayfix	Ray Fix	rayfix<>gmail~com
 redi	Jonathan Wakely	cow<>compsoc~man~ac~uk
 rene	Unknown	unknown<>boost~org
 reportbase	Tom Brinkman	reportbase<>gmail~com
 reportbase2004	Tom Brinkman	reportbase<>gmail~com
 rgarcia	Ronald Garcia	rxg<>cs~cmu~edu
+rgoyder	Russell Goyder	russell<>goyder~org
+rob	Robert Stewart	robertstewart<>comcast~net
 rogeeff	Gennadiy Rozental	rogeeff<>gmail~com
 root	Boost Administrator	boost_admin<>users~sourceforge~net
 rr74	Unknown	unknown<>boost~org
-rutger	Unknown	unknown<>boost~org
+ruediger_hanke	Ruediger Hanke	tj1249<>talesofbeauty~de
+rutger	Rutger ter Borg	rutger<>terborg~net
 rwgk	Ralf W~ Grosse-Kunstleve	rwgk<>yahoo~com
-s.gautam	Unknown	unknown<>boost~org
-s_ochsenknecht	Sascha Ochsenknecht	unknown<>boost~org
+s.gautam	Gautam Sewani	gautamcool88<>gmail~com
+s_ochsenknecht	Sascha Ochsenknecht	s~ochsenknecht<>googlemail~com
 samuel_k	Samuel Krempp	krempp<>crans~ens-cachan~fr
 samuel_krempp	Samuel Krempp	krempp<>crans~ens-cachan~fr
-schoedl	Unknown	unknown<>boost~org
+schoedl	Arno Schoedl	aschoedl<>think-cell~com
 schoepflin	Markus Schöpflin	markus~schoepflin<>comsoft~de
 sdiederich	Stephan Diederich	stephan~diederich<>googlemail~com
 shammah	Stephen Cleary	scleary<>jerviswebb~com
-siliconman	David Dean	siliconman<>spamcop~net
-simons	Unknown	unknown<>boost~org
+siliconman	David Dean	david~dean<>codegear~com
+simons	Peter Simons	simons<>cryp~to
 sixtrillion	Unknown	unknown<>boost~org
-sl_	Unknown	unknown<>boost~org
+sl_	Slawomir Lisznianski	sl<>paramay~com
 slapi	Stefan Slapeta	stefan<>slapeta~com
-smcmurray	Unknown	unknown<>boost~org
+smcmurray	Scott McMurray	me22~ca+boost<>gmail~com
+softwareace	Andreas Haberstroh	andreas<>ibusy~com
 sohail	Sohail Somani	sohail<>taggedtype~net
 speedsnail	Roland Schwarz	roland~schwarz<>chello~at
+spr_talk	Sanjay Rane	sanjayrane<>hotmail~com
 srajko	Stjepan Rajko	stjepan~rajko<>gmail~com
 stefan	Stefan Seefeld	seefeld<>sympatico~ca
-stefans	Unknown	unknown<>boost~org
+stefans	Stefan Strasser	strasser<>uni-bremen~de
 stephan.diederich	Unknown	unknown<>boost~org
 steven_watanabe	Steven Watanabe	watanabesj<>gmail~com
 straszheim	Troy D~ Straszheim	troy<>resophonic~com
+studoot	Stuart Dootson	stuart~dootson<>gmail~com
 surerb	Unknown	unknown<>boost~org
 syl	Sylvain Pion	Sylvain~Pion<>sophia~inria~fr
 t_schwinger	Tobias Schwinger	tschwinger<>isonews2~com
 t_stange	Unknown	unknown<>boost~org
 thejcab	Juan Carlos Arevalo-Baeza	jcab<>JCABs-Rumblings~com
-theller	Thomas Heller	unknown<>boost~org
-thijs	Unknown	unknown<>boost~org
+theller	Thomas Heller	thom~heller<>googlemail~com
+thijs	Thijs van den Berg	thijs<>sitmo~com
 tibuleac.ioana	Unknown	unknown<>boost~org
 tknapen	Toon Knapen	toon~knapen<>fft~be
-tobias.loew	Unknown	unknown<>boost~org
+tobias.loew	Tobias Loew	tobi<>die-loews~de
+trisk	Albert Lee	trisk<>opensolaris~org
 troy	Troy D~ Straszheim	troy<>resophonic~com
 troyer	Matthias Troyer	troyer<>phys~ethz~ch
 tslettebo	Terje Slettebø	tslettebo<>broadpark~no
 turkanis	Jonathan Turkanis	turkanis<>coderage~com
-tzlaine	Zach Laine	whatwasthataddress<>gmail~com
+tzlaine	Timothy Zachary Laine	whatwasthataddress<>gmail~com
 uid30600	uid30600	uid30600<>boost~org
 uid30850	uid30850	uid30850<>boost~org
 ullrich_koethe	Ullrich Köthe	koethe<>informatik~uni-hamburg~de
 urzuga	Jaakko Järvi	jarvi<>cs~tamu~edu
-vawjr	Victor A~ Wagner Jr~	vawjr<>rudbek~com
+vawjr	Victor A~ Wagner Jr~	vwagner<>tetondata~com
+venet	Cédric Venet	cedric~venet<>student~ecp~fr
 vertleyb	Arkadiy Vertleyb	vertleyb<>hotmail~com
 vesa_karvonen	Vesa Karvonen	vesa_karvonen<>hotmail~com
-vexocide	Unknown	unknown<>boost~org
-viboes	Vicente J. Botet Escriba	vicente~botet<>wanadoo~fr
+vexocide	Jeroen Habraken	vexocide<>gmail~com
+viboes	Vicente J~ Botet Escriba	vicente~botet<>wanadoo~fr
 vladimir_prus	Vladimir Prus	vladimir<>codesourcery~com
-wash	Bryce Lelbach	unknown<>boost~org
-wash	Unknown	unknown<>boost~org
+wash	Bryce Lelbach	blelbach<>pathscale~com
 witt	Thomas Witt	witt<>acm~org
 wom-work	Ben Hutchings	ben<>decadentplace~org~uk
 xiaogang.zhang	Unknown	unknown<>boost~org
-xushiwei	Unknown	unknown<>boost~org
-yigongliu	Unknown	unknown<>boost~org
-youjamaa	Unknown	unknown<>boost~org
-yupeng	Peng Yu	unknown<>boost~org
-zeux	Unknown	unknown<>boost~org
+xushiwei	xushiwei	xushiweizh<>gmail~com
+yigongliu	Yigong Liu	yigongliu<>gmail~com
+youjamaa	Youssef Oujamaa	youssef~oujamaa<>gmail~com
+yuanming	Yuanming Chen	unknown<>boost~org
+yupeng	Peng Yu	pengyu~ut<>gmail~com
+zeux	zeux	arseny~kapoulkine<>gmail~com
