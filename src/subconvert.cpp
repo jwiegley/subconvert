@@ -48,6 +48,7 @@ struct Options
   bool verbose;
   int  debug;
   bool verify;
+  bool skip_preflight;
   int  start;
   int  cutoff;
 
@@ -56,23 +57,24 @@ struct Options
   boost::filesystem::path modules_file;
 
   Options() : verbose(false), debug(0), verify(false),
-              start(0), cutoff(0) {}
+              skip_preflight(false), start(0), cutoff(0) {}
 };
 
 class StatusDisplay : public boost::noncopyable
 {
   std::ostream& out;
-  std::string   verb;
   int           last_rev;
   mutable bool  need_newline;
   Options       opts;
 
 public:
+  std::string   verb;
+
   StatusDisplay(std::ostream&      _out,
                 const Options&     _opts = Options(),
-                const std::string& _verb = "Scanning") :
-    out(_out), verb(_verb), last_rev(-1), need_newline(false),
-    opts(_opts) {}
+                const std::string& _verb = "Scanning")
+    : out(_out), last_rev(-1), need_newline(false), opts(_opts),
+      verb(_verb) {}
 
   void set_last_rev(int _last_rev = -1) {
     last_rev = _last_rev;
@@ -337,10 +339,10 @@ struct ConvertRepository
   std::vector<Git::TreePtr>   rev_trees;
   Git::TreePtr                rev_tree;
   authors_map                 authors;
-  std::set<std::string>       unrecognized_authors;
   branches_map                branches;
   std::vector<Git::CommitPtr> commit_queue;
   Git::BranchPtr              master_branch;
+  Git::BranchPtr              history_branch;
   Git::BranchPtr              orphan_branch;
 
   ConvertRepository(const SvnDump::File& _dump,
@@ -348,11 +350,14 @@ struct ConvertRepository
                     StatusDisplay&       _status,
                     const Options&       _opts = Options())
     : dump(_dump), repository(_repository), status(_status), opts(_opts),
-      last_rev(-1), master_branch(new Git::Branch("flat-history", true)),
+      last_rev(-1), master_branch(new Git::Branch("master")),
+      history_branch(new Git::Branch("flat-history", true)),
       orphan_branch(new Git::Branch("orphan-history", true)) {}
 
-  void load_authors(const boost::filesystem::path& pathname)
+  int load_authors(const boost::filesystem::path& pathname)
   {
+    int errors = 0;
+
     authors.clear();
 
     static const int MAX_LINE = 8192;
@@ -404,14 +409,18 @@ struct ConvertRepository
 
       std::pair<authors_map::iterator, bool> result =
         authors.insert(authors_value(author_id, author));
-      if (! result.second)
-        status.warn(std::string("Author id repeated in authors file: ") +
-                    author_id);
+      if (! result.second) {
+        status.warn(std::string("Author id repeated: ") + author_id);
+        ++errors;
+      }
     }
+    return errors;
   }
 
-  void load_branches(const boost::filesystem::path& pathname)
+  int load_branches(const boost::filesystem::path& pathname)
   {
+    int errors = 0;
+
     branches.clear();
 
     static const int MAX_LINE = 8192;
@@ -448,17 +457,53 @@ struct ConvertRepository
         field++;
       }
 
-      branches.insert(branches_value(branch->prefix, branch));
+      if (branch->prefix.empty() || branch->name.empty())
+        continue;
+
+      std::pair<branches_map::iterator, bool> result =
+        branches.insert(branches_value(branch->prefix, branch));
+      if (! result.second) {
+        status.warn(std::string("Branch prefix repeated: ") +
+                    branch->prefix.string());
+        ++errors;
+      } else {
+        for (boost::filesystem::path dirname(branch->prefix.parent_path());
+             ! dirname.empty();
+             dirname = dirname.parent_path()) {
+          branches_map::iterator i = branches.find(dirname);
+          if (i != branches.end()) {
+            status.warn(std::string("Parent of branch prefix ") +
+                        branch->prefix.string() + " exists: " +
+                        (*i).second->prefix.string());
+            ++errors;
+          }
+        }
+
+        for (branches_map::iterator i = branches.begin();
+             i != branches.end();
+             ++i) {
+          if (branch != (*i).second &&
+              branch->name == (*i).second->name) {
+            status.warn(std::string("Branch name repeated: ") +
+                        branch->prefix.string());
+            ++errors;
+          }
+        }
+      }
     }
+    return errors;
   }
 
-  void load_modules(const boost::filesystem::path& /*pathname*/)
+  int load_modules(const boost::filesystem::path& /*pathname*/)
   {
     // jww (2011-01-29): NYI
+    return 0;
   }
 
-  void load_revmap()
+  int load_revmap()
   {
+    int errors = 0;
+
     // jww (2011-01-29): Need to walk through the entire repository, to
     // find all the commits.
 
@@ -485,23 +530,23 @@ struct ConvertRepository
 #endif
 #endif
     }
+    return errors;
   }
 
   Git::BranchPtr find_branch(const boost::filesystem::path& pathname)
   {
-    for (boost::filesystem::path dirname(pathname);
-         ! dirname.empty();
-         dirname = dirname.parent_path()) {
-      branches_map::iterator i = branches.find(dirname);
-      if (i != branches.end())
-        return (*i).second;
+    if (branches.empty()) {
+      return master_branch;
+    } else {
+      for (boost::filesystem::path dirname(pathname);
+           ! dirname.empty();
+           dirname = dirname.parent_path()) {
+        branches_map::iterator i = branches.find(dirname);
+        if (i != branches.end())
+          return (*i).second;
+      }
+      return NULL;
     }
-
-    std::ostringstream buf;
-    buf << "Could not find branch for " << pathname << " in r" << rev;
-    status.warn(buf.str());
-
-    return orphan_branch;
   }
 
   Git::TreePtr get_past_tree(const SvnDump::File::Node& node)
@@ -572,14 +617,11 @@ struct ConvertRepository
     // Setup the author and commit comment
     std::string           author_id(dump.get_rev_author());
     authors_map::iterator author = authors.find(author_id);
-    if (author != authors.end()) {
-      // jww (2011-01-27): What about timezones?
+    if (author != authors.end())
       commit->set_author((*author).second.name, (*author).second.email,
                          dump.get_rev_date());
-    } else {
-      unrecognized_authors.insert(author_id);
+    else
       commit->set_author(author_id, "", dump.get_rev_date());
-    }
 
     boost::optional<std::string> log(dump.get_rev_log());
     int beg = 0;
@@ -676,20 +718,20 @@ struct ConvertRepository
       status.info(buf.str());
     }
 
-    if (branches_modified > 0) {
+    if (! branches.empty() && branches_modified > 0) {
       // Also add this commit
-      Git::CommitPtr master_commit =
-        (master_branch->commit ?
-         master_branch->commit->clone() : repository.create_commit());
+      Git::CommitPtr history_commit =
+        (history_branch->commit ?
+         history_branch->commit->clone() : repository.create_commit());
 
-      set_commit_info(master_commit);
+      set_commit_info(history_commit);
 
-      master_commit->tree   = rev_tree;
-      master_commit->branch = master_branch;
-      master_commit->write();
+      history_commit->tree   = rev_tree;
+      history_commit->branch = history_branch;
+      history_commit->write();
 
-      master_branch->last_rev = rev;
-      master_branch->commit   = master_commit;
+      history_branch->last_rev = rev;
+      history_branch->commit   = history_commit;
     }
   }
 
@@ -822,25 +864,17 @@ struct ConvertRepository
       }
     }
 
-    if (orphan_branch->commit) {
-      repository.create_tag(orphan_branch->commit, orphan_branch->name);
-      status.info(std::string("Wrote tag ") + orphan_branch->name);
-    }
     if (master_branch->commit) {
       repository.create_tag(master_branch->commit, master_branch->name);
       status.info(std::string("Wrote branch ") + master_branch->name);
     }
-
-    bool newline_output = false;
-    for (std::set<std::string>::const_iterator
-           i = unrecognized_authors.begin();
-         i != unrecognized_authors.end();
-         ++i) {
-      if (! newline_output) {
-        status.newline();
-        newline_output = true;
-      }
-      status.warn(std::string("Unrecognized author id: ") + *i);
+    if (history_branch->commit) {
+      repository.create_tag(history_branch->commit, history_branch->name);
+      status.info(std::string("Wrote branch ") + history_branch->name);
+    }
+    if (orphan_branch->commit) {
+      repository.create_tag(orphan_branch->commit, orphan_branch->name);
+      status.info(std::string("Wrote tag ") + orphan_branch->name);
     }
 
     status.finish();
@@ -880,6 +914,8 @@ int main(int argc, char *argv[])
           opts.verbose = true;
         else if (std::strcmp(&argv[i][2], "debug") == 0)
           opts.debug = 1;
+        else if (std::strcmp(&argv[i][2], "skip") == 0)
+          opts.skip_preflight = 1;
         else if (std::strcmp(&argv[i][2], "start") == 0)
           opts.start = std::atoi(argv[++i]);
         else if (std::strcmp(&argv[i][2], "cutoff") == 0)
@@ -957,56 +993,131 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  SvnDump::File dump(args[1]);
+  try {
+    SvnDump::File dump(args[1]);
 
-  if (cmd == "print") {
-    invoke_scanner<PrintDumpFile>(dump);
-  }
-  else if (cmd == "authors") {
-    invoke_scanner<FindAuthors>(dump);
-  }
-  else if (cmd == "branches") {
-    invoke_scanner<FindBranches>(dump);
-  }
-  else if (cmd == "convert") {
-    Git::Repository   repo(args.size() == 2 ?
-                           boost::filesystem::current_path() : args[2]);
-    StatusDisplay     status(std::cerr, opts, "Converting");
-    ConvertRepository converter(dump, repo, status, opts);
-
-    if (! opts.authors_file.empty() &&
-        boost::filesystem::is_regular_file(opts.authors_file))
-      converter.load_authors(opts.authors_file);
-
-    if (! opts.branches_file.empty() &&
-        boost::filesystem::is_regular_file(opts.branches_file))
-      converter.load_branches(opts.branches_file);
-
-    if (! opts.modules_file.empty() &&
-        boost::filesystem::is_regular_file(opts.modules_file))
-      converter.load_branches(opts.modules_file);
-
-    while (dump.read_next(/* ignore_text= */ false,
-                          /* verify=      */ opts.verify)) {
-      status.set_last_rev(dump.get_last_rev_nr());
-      int rev = dump.get_rev_nr();
-      if (opts.cutoff && rev > opts.cutoff)
-        break;
-      if (! opts.start || rev >= opts.start)
-        converter(dump, dump.get_curr_node());
+    if (cmd == "print") {
+      invoke_scanner<PrintDumpFile>(dump);
     }
-    converter.report(std::cout);
-  }
-  else if (cmd == "scan") {
-    StatusDisplay status(std::cerr, opts);
-    while (dump.read_next(/* ignore_text= */ !opts.verify,
-                          /* verify=      */ opts.verify)) {
-      status.set_last_rev(dump.get_last_rev_nr());
+    else if (cmd == "authors") {
+      invoke_scanner<FindAuthors>(dump);
+    }
+    else if (cmd == "branches") {
+      invoke_scanner<FindBranches>(dump);
+    }
+    else if (cmd == "convert") {
+      Git::Repository   repo(args.size() == 2 ?
+                             boost::filesystem::current_path() : args[2]);
+      StatusDisplay     status(std::cerr, opts);
+      ConvertRepository converter(dump, repo, status, opts);
+      int               errors = 0;
+
+      // Load any information provided by the user to assist with the
+      // migration.
+
+      if (! opts.authors_file.empty() &&
+          boost::filesystem::is_regular_file(opts.authors_file))
+        errors += converter.load_authors(opts.authors_file);
+
+      if (! opts.branches_file.empty() &&
+          boost::filesystem::is_regular_file(opts.branches_file))
+        errors += converter.load_branches(opts.branches_file);
+
+      if (! opts.modules_file.empty() &&
+          boost::filesystem::is_regular_file(opts.modules_file))
+        errors += converter.load_modules(opts.modules_file);
+
+      errors += converter.load_revmap();
+
+      // Validate this information as much as possible before possibly
+      // wasting the user's time with useless work.
+
+      if (! opts.skip_preflight) {
+        status.verb = "Scanning";
+        while (dump.read_next(/* ignore_text= */ false,
+                              /* verify=      */ true)) {
+          status.set_last_rev(dump.get_last_rev_nr());
+          status.update(dump.get_rev_nr());
+
+          const SvnDump::File::Node& node(dump.get_curr_node());
+
+          if (! converter.authors.empty()) {
+            std::string author_id(dump.get_rev_author());
+            ConvertRepository::authors_map::iterator author =
+              converter.authors.find(author_id);
+            if (author == converter.authors.end()) {
+              std::ostringstream buf;
+              buf << "Unrecognized author id: " << author_id;
+              status.warn(buf.str());
+              ++errors;
+            }
+          }
+
+          if (! converter.branches.empty()) {
+            // Ignore pathname which only add or modify directories, but
+            // do care about all entries which add or modify files, and
+            // those which copy directories.
+
+            if (node.get_action() == SvnDump::File::Node::ACTION_DELETE ||
+                node.get_kind()   == SvnDump::File::Node::KIND_FILE ||
+                node.has_copy_from()) {
+              if (! converter.find_branch(node.get_path())) {
+                std::ostringstream buf;
+                buf << "Could not find branch for " << node.get_path()
+                    << " in r" << dump.get_rev_nr();
+                status.warn(buf.str());
+                ++errors;
+              }
+              if (node.has_copy_from() &&
+                  ! converter.find_branch(node.get_copy_from_path())) {
+                std::ostringstream buf;
+                buf << "Could not find branch for " << node.get_copy_from_path()
+                    << " in r" << dump.get_rev_nr();
+                status.warn(buf.str());
+                ++errors;
+              }
+            }
+          }
+        }
+        status.newline();
+
+        if (errors > 0) {
+          status.warn("Please correct the errors listed above and run again.");
+          return 1;
+        }
+        status.warn("In future, --skip can be used to skip this pre-scan.");
+
+        dump.rewind();
+      }
+
+      // If everything passed the preflight, perform the conversion.
+
+      status.verb = "Converting";
+      while (dump.read_next(/* ignore_text= */ false)) {
+        status.set_last_rev(dump.get_last_rev_nr());
+        int rev = dump.get_rev_nr();
+        if (opts.cutoff && rev > opts.cutoff)
+          break;
+        if (! opts.start || rev >= opts.start)
+          converter(dump, dump.get_curr_node());
+      }
+      converter.report(std::cout);
+    }
+    else if (cmd == "scan") {
+      StatusDisplay status(std::cerr, opts);
+      while (dump.read_next(/* ignore_text= */ !opts.verify,
+                            /* verify=      */ opts.verify)) {
+        status.set_last_rev(dump.get_last_rev_nr());
+        if (opts.verbose)
+          status.update(dump.get_rev_nr());
+      }
       if (opts.verbose)
-        status.update(dump.get_rev_nr());
+        status.finish();
     }
-    if (opts.verbose)
-      status.finish();
+  }
+  catch (const std::exception& err) {
+    std::cerr << "Error: " << err.what() << std::endl;
+    return 1;
   }
 
   return 0;
