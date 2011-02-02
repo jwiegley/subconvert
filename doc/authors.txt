@@ -98,7 +98,6 @@ dgregor	Douglas Gregor	doug~gregor<>gmail~com
 diemumiee	Andreas Pokorny	andreas~pokorny<>gmail~com
 dirkgerrits	Dirk Gerrits	dirk~gerrits<>gmail~com
 djenkins	David Jenkins	david<>jenkins~net
-djowel	Joel de Guzman	djowel<>gmail~com
 djowel	Joel de Guzman	joel<>boostpro~com
 djwalker	Daniel Walker	daniel~j~walker<>gmail~com
 dlwalker	Daryle Walker	dwalker07<>yahoo~com
