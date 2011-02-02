@@ -183,7 +183,7 @@ joerg_walter	Jörg Walter	jhr~walter<>t-online~de
 joernu76	Joern Ungermann	j~ungermann<>fz-juelich~de
 jofaber	Joachim Faulhaber	afojgo<>gmail~com
 johan_torp	Johan Torp	johan~torp<>gmail~com
-john.maddock	Unknown	unknown<>boost~org
+john.maddock	John Maddock	john<>johnmaddock~co~uk
 john_phillips	John Phillips	jphillip<>capital~edu
 johnmaddock	John Maddock	john<>johnmaddock~co~uk
 jonkalb	Jon Kalb	jon<>kalbweb~com
@@ -224,10 +224,10 @@ marshall	Marshall Clow	marshall<>idio~com
 martin_wille	Martin Wille	mw8329<>yahoo~com~au
 mathiaskoch	Mathias Koch	mathiaskoch<>users~sourceforge~net
 matias	Matias Capeletto	matias~capeletto<>gmail~com
-matias.capeletto	Unknown	unknown<>boost~org
+matias.capeletto	Matias Capeletto	matias~capeletto<>gmail~com
 matiascape	Matias Capeletto	matias~capeletto<>gmail~com
 matt_calabrese	Matthew Calabrese	rivorus<>gmail~com
-matthew.calabrese	Unknown	unknown<>boost~org
+matthew.calabrese	Matthew Calabrese	rivorus<>gmail~com
 matthiasschabel	Matthias Schabel	boost<>schabel-family~org
 matus.chochlik	Matus Chochlik	chochlik<>gmail~com
 maxime2	Unknown	unknown<>boost~org
