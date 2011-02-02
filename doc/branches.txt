@@ -78,7 +78,7 @@ tag	10461	2001-06-28	8	branches/iter-adaptor-and-categories	old-branches/iter-ad
 tag	7671	2000-08-01	14	branches/iterator-adaptors	old-branches/iterator-adaptors
 tag	11537	2001-11-02	8	branches/iterator_adaptor_update	old-branches/iterator_adaptor_update
 tag	38365	2007-08-02	1	branches/iterator_build	old-branches/iterator_build
-tag	40258	2007-10-21	1	branches/jam/4_0/src	old-branches/jam/4_0/src
+tag	40258	2007-10-21	1	branches/jam/4_0	old-branches/jam/4_0
 tag	38360	2007-08-02	1	branches/jam/Boost_Jam_994	old-branches/jam/Boost_Jam_994
 tag	38364	2007-08-02	1	branches/jam/jam-src	old-branches/jam/jam-src
 tag	38361	2007-08-02	1	branches/jam/jam_src	old-branches/jam/jam_src
