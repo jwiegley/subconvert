@@ -38,9 +38,9 @@ if [[ -d $RAMDISK/cpp ]]; then
     git checkout trunk >> $LOG 2>&1
     git gc >> $LOG 2>&1
     git remote add origin git@github.com:boost-lib/boost-history.git >> $LOG 2>&1
-    git retrack >> $LOG 2>&1
-    git push --all >> $LOG 2>&1
-    git push --tags >> $LOG 2>&1
+    git push -f --all origin >> $LOG 2>&1
+    git push -f --mirror origin >> $LOG 2>&1
+    git push -f --tags origin >> $LOG 2>&1
 fi
 
 mv $LOG $SOURCE
