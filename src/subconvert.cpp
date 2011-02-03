@@ -343,6 +343,7 @@ struct ConvertRepository
   std::vector<Git::CommitPtr> commit_queue;
   Git::BranchPtr              master_branch;
   Git::BranchPtr              history_branch;
+  bool                        create_history_commit;
   Git::BranchPtr              orphan_branch;
 
   ConvertRepository(const SvnDump::File& _dump,
@@ -352,6 +353,7 @@ struct ConvertRepository
     : dump(_dump), repository(_repository), status(_status), opts(_opts),
       last_rev(-1), master_branch(new Git::Branch("master")),
       history_branch(new Git::Branch("flat-history", true)),
+      create_history_commit(true),
       orphan_branch(new Git::Branch("orphan-history", true)) {}
 
   int load_authors(const boost::filesystem::path& pathname)
@@ -561,6 +563,40 @@ struct ConvertRepository
     throw std::logic_error(buf.str());
   }
 
+  void set_commit_info(Git::CommitPtr commit)
+  {
+    // Setup the author and commit comment
+    std::string           author_id(dump.get_rev_author());
+    authors_map::iterator author = authors.find(author_id);
+    if (author != authors.end())
+      commit->set_author((*author).second.name, (*author).second.email,
+                         dump.get_rev_date());
+    else
+      commit->set_author(author_id, "", dump.get_rev_date());
+
+    boost::optional<std::string> log(dump.get_rev_log());
+    int beg = 0;
+    int len = 0;
+    if (log) {
+      len = log->length();
+      while (beg < len &&
+             ((*log)[beg] == ' '  || (*log)[beg] == '\t' ||
+              (*log)[beg] == '\n' || (*log)[beg] == '\r'))
+        ++beg;
+      while ((*log)[len - 1] == ' '  || (*log)[len - 1] == '\t' ||
+             (*log)[len - 1] == '\n' || (*log)[len - 1] == '\r')
+        --len;
+    }
+
+    std::ostringstream buf;
+    if (log && len)
+      buf << std::string(*log, beg, len) << '\n'
+          << '\n';
+    buf << "SVN-Revision: " << rev;
+
+    commit->set_message(buf.str());
+  }
+
   Git::CommitPtr get_commit(const boost::filesystem::path& pathname)
   {
     Git::BranchPtr branch(find_branch(pathname));
@@ -603,41 +639,25 @@ struct ConvertRepository
     set_commit_info(commit);
     commit_queue.push_back(commit);
 
-    return commit;
-  }
+    if (create_history_commit && ! branches.empty()) {
+      // Also add this commit
+      Git::CommitPtr history_commit =
+        (history_branch->commit ?
+         history_branch->commit->clone() : repository.create_commit());
 
-  void set_commit_info(Git::CommitPtr commit)
-  {
-    // Setup the author and commit comment
-    std::string           author_id(dump.get_rev_author());
-    authors_map::iterator author = authors.find(author_id);
-    if (author != authors.end())
-      commit->set_author((*author).second.name, (*author).second.email,
-                         dump.get_rev_date());
-    else
-      commit->set_author(author_id, "", dump.get_rev_date());
+      set_commit_info(history_commit);
 
-    boost::optional<std::string> log(dump.get_rev_log());
-    int beg = 0;
-    int len = 0;
-    if (log) {
-      len = log->length();
-      while (beg < len &&
-             ((*log)[beg] == ' '  || (*log)[beg] == '\t' ||
-              (*log)[beg] == '\n' || (*log)[beg] == '\r'))
-        ++beg;
-      while ((*log)[len - 1] == ' '  || (*log)[len - 1] == '\t' ||
-             (*log)[len - 1] == '\n' || (*log)[len - 1] == '\r')
-        --len;
+      history_commit->tree   = rev_tree;
+      history_commit->branch = history_branch;
+      history_commit->write();
+
+      history_branch->last_rev = rev;
+      history_branch->commit   = history_commit;
+
+      create_history_commit = false;
     }
 
-    std::ostringstream buf;
-    if (log && len)
-      buf << std::string(*log, beg, len) << '\n'
-          << '\n';
-    buf << "SVN-Revision: " << rev;
-
-    commit->set_message(buf.str());
+    return commit;
   }
 
   void flush_commit_queue()
@@ -711,22 +731,6 @@ struct ConvertRepository
           << branches_modified << " branches";
       status.info(buf.str());
     }
-
-    if (! branches.empty() && branches_modified > 0) {
-      // Also add this commit
-      Git::CommitPtr history_commit =
-        (history_branch->commit ?
-         history_branch->commit->clone() : repository.create_commit());
-
-      set_commit_info(history_commit);
-
-      history_commit->tree   = rev_tree;
-      history_commit->branch = history_branch;
-      history_commit->write();
-
-      history_branch->last_rev = rev;
-      history_branch->commit   = history_commit;
-    }
   }
 
   void next_revision()
@@ -743,6 +747,8 @@ struct ConvertRepository
     else
       rev_tree = repository.create_tree();
     rev_trees.push_back(rev_tree);
+
+    create_history_commit = true;
   }
 
   bool add_file(const SvnDump::File::Node& node)
