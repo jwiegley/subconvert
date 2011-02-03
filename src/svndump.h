@@ -181,6 +181,7 @@ namespace SvnDump
       handle->rdbuf()->pubsetbuf(read_buffer, 1024 * 1024);
     }
     void rewind() {
+      handle->clear();
       handle->seekg(0, std::ios::beg);
       curr_node.reset();
       curr_node.curr_txn = -1;
