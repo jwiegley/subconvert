@@ -356,6 +356,26 @@ struct ConvertRepository
       create_history_commit(true),
       orphan_branch(new Git::Branch("orphan-history", true)) {}
 
+  const char * unescape_string(const char * str)
+  {
+    static char buf[256];
+    char * s = buf;
+    for (const char * q = str; *q; ++q, ++s) {
+      if (*q == '<' && *(q + 1) == '>') {
+        *s = '@';
+        ++q;
+      }
+      else if (*q == '~') {
+        *s = '.';
+      }
+      else {
+        *s = *q;
+      }
+    }
+    *s = '\0';
+    return buf;
+  }
+
   int load_authors(const boost::filesystem::path& pathname)
   {
     int errors = 0;
@@ -382,29 +402,13 @@ struct ConvertRepository
           author_id = p;
           break;
         case 1:
-          author.name = p;
+          author.name = unescape_string(p);
           if (author.name == "Unknown")
             author.name = author_id;
           break;
-        case 2: {
-          char buf[256];
-          char * s = buf;
-          for (const char * q = p; *q; ++q, ++s) {
-            if (*q == '<' && *(q + 1) == '>') {
-              *s = '@';
-              ++q;
-            }
-            else if (*q == '~') {
-              *s = '.';
-            }
-            else {
-              *s = *q;
-            }
-          }
-          *s = '\0';
-          author.email = buf;
+        case 2:
+          author.email = unescape_string(p);
           break;
-        }
         }
         field++;
       }
