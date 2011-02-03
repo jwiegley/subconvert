@@ -551,12 +551,6 @@ struct ConvertRepository
 
   Git::TreePtr get_past_tree(const SvnDump::File::Node& node)
   {
-#if 0
-    // jww (2011-01-29): NYI
-    if (other_branch->rev_map.empty())
-      load_revmap();
-#endif
-    // jww (2011-01-30): Go backwards if a NULL is found
     for (int i = node.get_copy_from_rev(); i >= 0; --i)
       if (Git::TreePtr tree = rev_trees[i])
         return tree;
