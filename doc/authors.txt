@@ -205,8 +205,7 @@ ktchan	Kwan Ting Chan	chankwanting<>gmail~com
 kyriales	Kresimir Fresl	fresl<>grad~hr
 lakeeast	Yuanming Chen	yuanming<>gmail~com
 lally.singh	Lally Singh	lally~singh<>gmail~com
-#latte	Andy Elvey	andy~elvey<>paradise~net~nz
-latte	Terence Wilson	tez<>latte~com
+latte	Andy Elvey	andy~elvey<>paradise~net~nz
 lbourdev	Lubomir Bourdev	lbourdev<>adobe~com
 lcaminiti	Lorenzo Caminiti	lorcaminiti<>gmail~com
 ljsimons	Lucanus J~ Simonson	lucanus~j~simonson<>intel~com
