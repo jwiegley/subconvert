@@ -780,14 +780,15 @@ struct ConvertRepository
       assert(obj);
       assert(obj->is_blob());
       obj = obj->copy_to_name(pathname.filename().string());
+      rev_tree->update(pathname, obj);
     }
     else if (! (node.get_action() == SvnDump::File::Node::ACTION_CHANGE &&
                 ! node.has_text())) {
       obj = repository.create_blob(pathname.filename().string(),
                                    node.has_text() ? node.get_text() : "",
                                    node.has_text() ? node.get_text_length() : 0);
+      rev_tree->update(pathname, obj);
     }
-    rev_tree->update(pathname, obj);
     return true;
   }
 
