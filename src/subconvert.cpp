@@ -130,7 +130,10 @@ public:
   }
 
   void finish() const {
-    newline();
+    if (need_newline) {
+      out << ", done." << std::endl;
+      need_newline = false;
+    }
   }
 };
 
