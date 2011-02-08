@@ -287,7 +287,7 @@ ramey	Robert Ramey	ramey<>rrsd~com
 rani_sharoni	Rani Sharoni	rani_sharoni<>hotmail~com
 raoulgough	Raoul Gough	RaoulGough<>yahoo~co~uk
 rayfix	Ray Fix	rayfix<>gmail~com
-redi	Jonathan Wakely	cow<>compsoc~man~ac~uk
+redi	Jonathan Wakely	boost<>kayari~org
 rene	Unknown	unknown<>boost~org
 reportbase	Tom Brinkman	reportbase<>gmail~com
 reportbase2004	Tom Brinkman	reportbase<>gmail~com
