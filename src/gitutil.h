@@ -495,8 +495,8 @@ namespace Git
         return commit;
       }
       void operator++() {
-        git_commit * git_commit = git_revwalk_next(walk.get());
-        commit = new Commit(repo, git_commit);
+        //git_commit * git_commit = git_revwalk_next(walk.get());
+        //commit = new Commit(repo, git_commit);
       }
       commit_iterator& operator++(int) {
         ++(*this);
