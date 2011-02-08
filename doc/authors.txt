@@ -41,7 +41,7 @@ bill_kempf	William E~ Kempf	wekempf<>cox~net
 biochimia	João Pedro Rocha Abecasis	jpabecasis<>gmail~com
 birbacher	Frank Birbacher	frank~birbacher<>rwth-aachen~de
 bjorn_karlsson	Björn Karlsson	Bjorn~Karlsson<>readsoft~com
-blindberg	Unknown	unknown<>boost~org
+blindberg	Björn Lindberg	unknown<>boost~org
 blq	Fredrik Blomqvist	fredrik_blomqvist<>home~se
 bms	Bruce Simpson	bms<>incunabulum~net
 bobwalters	Bob Walters	bob~s~walters<>gmail~com
@@ -212,8 +212,8 @@ ljsimons	Lucanus J~ Simonson	lucanus~j~simonson<>intel~com
 llee1	Lie-Quan Lee	liequan<>slac~stanford~edu
 loonycyborg	Sergey Popov	loonycyborg<>gmail~com
 lopezeant	Michael Lopez	mlopez7<>kent~edu
-loyso	Unknown	unknown<>boost~org
-manitou	Unknown	unknown<>boost~org
+loyso	Alexey Baskakov	unknown<>boost~org
+manitou	Marc Wintermantel	unknown<>boost~org
 marccromme	Marc Cromme	marc<>ange~dk
 mariomulansky	Mario Mulansky	mario~mulansky<>gmx~net
 mark_rodgers	Mark Rodgers	mark~rodgers<>cadenza~co~nz
@@ -228,14 +228,14 @@ matt_calabrese	Matthew Calabrese	rivorus<>gmail~com
 matthew.calabrese	Matthew Calabrese	rivorus<>gmail~com
 matthiasschabel	Matthias Schabel	boost<>schabel-family~org
 matus.chochlik	Matus Chochlik	chochlik<>gmail~com
-maxime2	Unknown	unknown<>boost~org
+maxime2	Maxim Yegorushkin	unknown<>boost~org
 mbergal	Misha Bergal	mbergal<>meta-comm~com
 mcecchetti	Marco Cecchetti	mrcekets<>gmail~com
 mclow	Marshall Clow	marshall<>idio~com
 mconsoni	Mariano Gabriel Consoni	mariano~consoni<>gmail~com
 memring	Pavol Droba	droba<>topmail~sk
 mgaunard	Mathias Gaunard	loufoque<>gmail~com
-michel_andre	Unknown	unknown<>boost~org
+michel_andre	Michel André	unknown<>boost~org
 mikhailberis	Dean Michael Berris	mikhailberis<>gmail~com
 mistevens	Michael Stevens	mail<>michael-stevens~de
 mjcaisse	Michael Caisse	mcaisse<>objectmodelingdesigns~com
@@ -272,8 +272,8 @@ pbouchard	Phil Bouchard	phil<>fornux~com
 pbristow	Paul A~ Bristow	pbristow<>hetp~u-net~com
 pdimov	Peter Dimov	pdimov<>boostpro~com
 pedro_ferreira	Pedro Ferreira	pedro~ferreira<>mog-solutions~com
-peti	Unknown	unknown<>boost~org
-pfg23	Unknown	unknown<>boost~org
+peti	Peter Simons	unknown<>boost~org
+pfg23	Phil Garofalo	unknown<>boost~org
 pgarofalo	Philip Garofalo	philgarofalo<>gmail~com
 phorgan1	Patrick Horgan	phorgan1<>yahoo~com
 pjfoley	Peter Foley	peter<>ifoley~id~au
@@ -296,7 +296,7 @@ rgoyder	Russell Goyder	russell<>goyder~org
 rob	Robert Stewart	robertstewart<>comcast~net
 rogeeff	Gennadiy Rozental	rogeeff<>gmail~com
 root	Boost Administrator	boost_admin<>users~sourceforge~net
-rr74	Unknown	unknown<>boost~org
+rr74	Roland Richter	unknown<>boost~org
 ruediger_hanke	Ruediger Hanke	tj1249<>talesofbeauty~de
 rutger	Rutger ter Borg	rutger<>terborg~net
 rwgk	Ralf W~ Grosse-Kunstleve	rwgk<>yahoo~com
