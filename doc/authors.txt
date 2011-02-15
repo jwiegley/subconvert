@@ -22,6 +22,7 @@ asundman	Anders Sundman	sundman~anders<>gmail~com
 asutton	Andrew Sutton	andrew~n~sutton<>gmail~com
 asydorchuk	Andrii Sydorchuk	sydorchuk~andriy<>gmail~com
 atompkins	Andy Tompkins	atompkins<>fastmail~fm
+awulkiew	Adam Wulkiewicz	adam.wulkiewicz<>gmail~com
 az_sw_dude	Jeff Garland	jeff<>crystalclearsoftware~com
 baraclese	Kevin Sopp	baraclese<>googlemail~com
 barendgehrels	Barend Gehrels	barend~gehrels<>geodan~nl
