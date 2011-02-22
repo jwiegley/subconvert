@@ -498,6 +498,7 @@ tag	64617	2010-08-05	1	tags/release/Boost_1_44_0_beta1	release/Boost_1_44_0_beta
 tag	66646	2010-11-19	1	tags/release/Boost_1_45_0	release/Boost_1_45_0
 tag	66473	2010-11-09	1	tags/release/Boost_1_45_0_beta1	release/Boost_1_45_0_beta1
 tag	68626	2011-02-03	1	tags/release/Boost_1_46_0_beta_1	release/Boost_1_46_0_beta_1
+tag	-1	2011-02-22	-1	tags/release/Boost_1_46_0	release/Boost_1_46_0
 tag	44271	2008-04-12	1	tags/release/RC_1_30_2	release/RC_1_30_2
 tag	44269	2008-04-12	1	tags/release/VERSION_1_35_0_RC1	release/VERSION_1_35_0_RC1
 tag	44228	2008-04-12	1	tags/release/Version_1_17_0	release/Version_1_17_0
