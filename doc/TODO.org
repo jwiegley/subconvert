@@ -1,0 +1,15 @@
+MY TASKS  -*- mode: org; fill-column: 78 -*-
+
+#+STARTUP: content fninline hidestars
+#+ARCHIVE: TODO-archive.org::
+#+SEQ_TODO: STARTED TODO(@) APPT WAITING(@) DELEGATED(@) DEFERRED(@) SOMEDAY(@) | DONE(@) CANCELED(@) NOTE
+#+DRAWERS: PROPERTIES LOGBOOK OUTPUT SCRIPT SOURCE DATA
+
+* TODO Intern strings used for object names
+  SCHEDULED: <2011-04-25 Mon>
+  This avoid duplication in memory, and makes the string comparisons much
+  faster.  One way is to use char*.
+  :PROPERTIES:
+  :ID:       ECFDD947-5FC0-40A2-A7A2-5C9B9DBBA5E9
+  :CREATED:  [2011-04-25 Mon 00:42]
+  :END:
