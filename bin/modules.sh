@@ -2,9 +2,9 @@
 
 set -o errexit
 
-TOP=/Volumes/RAID/Mirrors/boost
+TOP=/Volumes/Data/Mirrors/Boost
 
-BOOST_RYPPL=$TOP/ryppl
+BOOST_MODULARIZE=$TOP/boost-modularize
 BOOST_SVN=$TOP/boost-svn
 BOOST_GIT=$TOP/boost-git
 
@@ -17,6 +17,6 @@ if [[ $1 == "reset" ]]; then
      git clean -fdx && \
      git status --porcelain | awk '{print $2}' | xargs rm -fr)
 else
-    (cd $BOOST_RYPPL/boost && \
-     python modularize.py -a --src=$BOOST_SVN --dst=$BOOST_GIT "$@")
+    (cd $BOOST_MODULARIZE && \
+     python modularize.py --src=$BOOST_SVN --dst=$BOOST_GIT "$@")
 fi    
