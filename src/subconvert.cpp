@@ -1094,7 +1094,7 @@ int main(int argc, char *argv[])
           status.warn("Please correct the errors listed above and run again.");
           return 1;
         }
-        status.warn("In future, --skip can be used to skip this pre-scan.");
+        status.warn("Note: --skip can be used to skip this pre-scan.");
 
         dump.rewind();
       }
