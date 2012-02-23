@@ -37,7 +37,6 @@ perl -i -pe "s%url =.*%url = file://$PWD/boost.svnrepo%;" boost-clone/.git/confi
 
 if [[ ! -d $RAMDISK ]]; then
     mkramdisk
-
     if [[ -d $RAMDISK ]]; then
         mkdir $RAMDISK/cpp
     fi
@@ -66,7 +65,7 @@ if [[ -d $RAMDISK/cpp ]]; then
 
     rsync -av --delete .git/ $BOOST/boost-history.git/
     cd $BOOST
-    diskutil eject $RAMDISK
+    sudo umount $RAMDISK
 fi
 
 $MIGRATE/bin/modules.sh update
