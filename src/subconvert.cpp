@@ -46,6 +46,7 @@
 struct Options
 {
   bool verbose;
+  bool quiet;
   int  debug;
   bool verify;
   bool skip_preflight;
@@ -56,7 +57,7 @@ struct Options
   boost::filesystem::path branches_file;
   boost::filesystem::path modules_file;
 
-  Options() : verbose(false), debug(0), verify(false),
+  Options() : verbose(false), quiet(false), debug(0), verify(false),
               skip_preflight(false), start(0), cutoff(0) {}
 };
 
@@ -96,7 +97,7 @@ public:
   }
 
   void newline() const {
-    if (need_newline) {
+    if (need_newline && ! opts.quiet) {
       out << std::endl;
       need_newline = false;
     }
@@ -109,6 +110,8 @@ public:
   }
 
   void update(const int rev = -1) const {
+    if (opts.quiet) return;
+
     out << verb << ": ";
     if (rev != -1) {
       if (last_rev) {
@@ -130,7 +133,7 @@ public:
   }
 
   void finish() const {
-    if (need_newline) {
+    if (need_newline && ! opts.quiet) {
       out << ", done." << std::endl;
       need_newline = false;
     }
@@ -921,6 +924,8 @@ int main(int argc, char *argv[])
           opts.verify = true;
         else if (std::strcmp(&argv[i][2], "verbose") == 0)
           opts.verbose = true;
+        else if (std::strcmp(&argv[i][2], "quiet") == 0)
+          opts.quiet = true;
         else if (std::strcmp(&argv[i][2], "debug") == 0)
           opts.debug = 1;
         else if (std::strcmp(&argv[i][2], "skip") == 0)
@@ -938,6 +943,8 @@ int main(int argc, char *argv[])
       }
       else if (std::strcmp(&argv[i][1], "v") == 0)
         opts.verbose = true;
+      else if (std::strcmp(&argv[i][1], "q") == 0)
+        opts.quiet = true;
       else if (std::strcmp(&argv[i][1], "d") == 0)
         opts.debug = 1;
       else if (std::strcmp(&argv[i][1], "A") == 0)

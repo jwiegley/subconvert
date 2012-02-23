@@ -48,7 +48,7 @@ if [[ -d $RAMDISK/cpp ]]; then
     cd $RAMDISK/cpp
 
     git init
-    time $MIGRATE/subconvert                                            \
+    time $MIGRATE/subconvert -q                                         \
         -A $MIGRATE/doc/authors.txt                                     \
         -B $MIGRATE/doc/branches.txt                                    \
         convert $BOOST//boost.svnrepo.dump
