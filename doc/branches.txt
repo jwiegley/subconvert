@@ -154,6 +154,7 @@ branch	42650	2008-01-10	63	branches/serialization_next_release	serialization_nex
 tag	8400	2000-12-08	3	branches/shared_modules	old-branches/shared_modules
 tag	20904	2003-11-21	30	branches/simplify	old-branches/simplify
 tag	11085	2001-09-10	14	branches/split-config	old-branches/split-config
+branch	-1	2012-03-13	-1	branches/spirit_3x	spirit_3x
 branch	55965	2009-09-01	19	branches/sredl_2009_05_proptree_update	sredl_2009_05_proptree_update
 tag	41031	2007-11-12	3	branches/system	old-branches/system
 tag	12891	2002-02-22	14	branches/test-development	old-branches/test-development

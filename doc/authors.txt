@@ -246,6 +246,7 @@ mclow	Marshall Clow	marshall<>idio~com
 mconsoni	Mariano Gabriel Consoni	mariano~consoni<>gmail~com
 memring	Pavol Droba	droba<>topmail~sk
 mgaunard	Mathias Gaunard	loufoque<>gmail~com
+michel	Unknown	michel_unknown<>boost~org
 michel_andre	Michel André	michel~andre<>swipnet~se
 mikhailberis	Dean Michael Berris	mikhailberis<>gmail~com
 mistevens	Michael Stevens	mail<>michael-stevens~de
