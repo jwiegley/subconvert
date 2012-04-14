@@ -62,6 +62,8 @@ tag	8316	2000-11-24	5	branches/error_handling	old-branches/error_handling
 tag	31964	2005-12-09	40	branches/fast_array_serialization	old-branches/fast_array_serialization
 tag	14281	2002-07-02	2	branches/feature_branch-update_rule	old-branches/feature_branch-update_rule
 branch	63100	2010-06-19	23	branches/filesystem3	filesystem3
+branch	-1	2012-04-13	-1	branches/filesystem-v3	filesystem-v3
+branch	-1	2012-04-13	-1	branches/filesystem-v3a	filesystem-v3a
 branch	43289	2008-02-17	88	branches/fix-links	fix-links
 tag	16590	2002-12-11	8	branches/fs_review	old-branches/fs_review
 tag	22682	2004-04-21	5	branches/function_signature_patches_1_31	old-branches/function_signature_patches_1_31
@@ -236,6 +238,7 @@ branch	55462	2009-08-08	1	sandbox-branches/birbacher/eclipse_contrib	sandbox/bir
 branch	60577	2010-03-14	9	sandbox-branches/birbacher/fix_documentation	sandbox/birbacher/fix_documentation
 branch	40700	2007-11-02	15	sandbox-branches/birbacher/fix_iostreams	sandbox/birbacher/fix_iostreams
 branch	39182	2007-09-10	5	sandbox-branches/birbacher/tmp_iostreams	sandbox/birbacher/tmp_iostreams
+branch	-1	2012-04-13	-1	sandbox-branches/birbacher/propertymap-functormap	sandbox/birbacher/propertymap-functormap
 branch	7556	2007-07-26	4	sandbox-branches/boost	sandbox/boost
 branch	7556	2007-07-26	128	sandbox-branches/boost-cmake	sandbox/boost-cmake
 branch	7556	2007-07-26	9	sandbox-branches/cppljevans	sandbox/cppljevans
