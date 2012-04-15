@@ -679,7 +679,7 @@ struct ConvertRepository
       if (! (*i)->is_modified()) {
         if (opts.debug) {
           std::ostringstream buf;
-          buf << "Commit for r" << rev << " had no Git-visible modifications";
+          buf << "Commit for r" << last_rev << " had no Git-visible modifications";
           status.debug(buf.str());
         }
         continue;
@@ -691,13 +691,13 @@ struct ConvertRepository
       if ((*i)->has_tree()) {
         if (opts.debug) {
           std::ostringstream buf;
-          buf << "Writing commit for r" << rev
+          buf << "Writing commit for r" << last_rev
               << " on branch " << (*i)->branch->name;
           status.debug(buf.str());
         }
 
         // Only now does the commit get associated with its branch
-        (*i)->branch->last_rev = rev;
+        (*i)->branch->last_rev = last_rev;
         (*i)->branch->commit   = *i;
         (*i)->write();
 
@@ -707,17 +707,17 @@ struct ConvertRepository
 
         if (opts.debug) {
           std::ostringstream buf;
-          buf << "Branch end r" << rev << ": " << branch->name;
+          buf << "Branch end r" << last_rev << ": " << branch->name;
           status.debug(buf.str());
         }
-        branch->last_rev = rev;
+        branch->last_rev = last_rev;
 
         if (branch->commit) {
           // If the branch is to be deleted, tag the last commit on
           // that branch with a special FOO__deleted_rXXXX name so the
           // history is preserved.
           std::ostringstream buf;
-          buf << branch->name << "__deleted_r" << rev;
+          buf << branch->name << "__deleted_r" << last_rev;
           std::string tag_name(buf.str());
           repository.create_tag((*i)->branch->commit, tag_name);
           status.debug(std::string("Wrote tag ") + tag_name);
