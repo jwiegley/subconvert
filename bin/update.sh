@@ -1,17 +1,12 @@
-#!/bin/bash
-
-set -e
+#!/bin/bash -x
 
 error() {
-    cat <<EOF | mutt -a ~/Library/Logs/boost-update.log \
-        -s '[boost] Migration update FAILED' johnw@boostpro.com
+    cat <<EOF | mutt -s '[boost] Migration update FAILED' johnw@boostpro.com
 Boost migration update build FAILED.
 EOF
 }
 
 trap 'error ${LINENO}' ERR
-
-exec > ~/Library/Logs/boost-update.log 2>&1
 
 RAMDISK=/tmp/ramdisk
 BOOST=/Volumes/Data/Mirrors/Boost
@@ -48,32 +43,32 @@ if [[ -d $RAMDISK/cpp ]]; then
     cd $RAMDISK/cpp
 
     git init
-    time $MIGRATE/subconvert -q                                         \
+    $MIGRATE/subconvert -q                                              \
         -A $MIGRATE/doc/authors.txt                                     \
         -B $MIGRATE/doc/branches.txt                                    \
-        convert $BOOST//boost.svnrepo.dump
+        convert $BOOST/boost.svnrepo.dump
     git symbolic-ref HEAD refs/heads/trunk
     git checkout trunk
     git gc
 
     sleep 300
 
-    #git remote add origin git@github.com:boost-lib/boost-history.git
-    #git push -f --all origin
-    #git push -f --mirror origin
-    #git push -f --tags origin
+    git remote add origin git@github.com:ryppl/boost-history.git
+    git push -f --all origin
+    git push -f --mirror origin
+    git push -f --tags origin
 
     rsync -av --delete .git/ $BOOST/boost-history.git/
     cd $BOOST
     sudo umount $RAMDISK
+    rm -fr $RAMDISK
 fi
 
-$MIGRATE/bin/modules.sh update
+#$MIGRATE/bin/modules.sh update
 #$MIGRATE/bin/modules.sh push
 
-cat <<EOF | mutt -a ~/Library/Logs/boost-update.log \
-    -s '[boost] Migration update succeeded' johnw@boostpro.com
-Boost migration update build succeeded.
+cat <<EOF | mutt -s '[boost] Migration update succeeded' johnw@boostpro.com
+Boost migration update succeeded.
 EOF
 
 exit 0
