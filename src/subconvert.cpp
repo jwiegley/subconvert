@@ -627,22 +627,31 @@ struct ConvertRepository
       // If the first action is a dir/add/copyfrom, then this will get
       // set correctly, otherwise it's a parentless branch, which is
       // also OK.
-      commit = branch->next_commit = repository.create_commit();
-
-      if (! dump.get_curr_node().has_copy_from())
-        status.info(std::string("Branch starts out empty: ") + branch->name);
-
-      if (opts.debug) {
-        std::ostringstream buf;
+      std::ostringstream buf;
+      if (opts.debug)
         buf << "Branch start r" << rev << ": " << branch->name;
-        if (dump.get_curr_node().has_copy_from()) {
-          Git::BranchPtr other_branch
-            (find_branch(dump.get_curr_node().get_copy_from_path()));
+
+      if (dump.get_curr_node().has_copy_from()) {
+        Git::BranchPtr other_branch
+          (find_branch(dump.get_curr_node().get_copy_from_path()));
+        if (opts.debug)
           buf << " (from r" << dump.get_curr_node().get_copy_from_rev()
               << ' ' << other_branch->name << ')';
+
+        if (other_branch->commit) {
+          commit = branch->next_commit = other_branch->commit->clone();
+        } else {
+          commit = branch->next_commit = repository.create_commit();
+          status.warn(std::string("Branch starts out empty: ") + branch->name);
         }
-        status.debug(buf.str());
+        commit->new_branch = true;
+      } else {
+        commit = branch->next_commit = repository.create_commit();
+        status.info(std::string("Branch starts out empty: ") + branch->name);
       }
+
+      if (opts.debug)
+        status.debug(buf.str());
     }
     commit->branch = branch;
 
@@ -676,7 +685,7 @@ struct ConvertRepository
     for (std::vector<Git::CommitPtr>::iterator i = commit_queue.begin();
          i != commit_queue.end();
          ++i) {
-      if (! (*i)->is_modified()) {
+      if (! (*i)->is_modified() && ! (*i)->is_new_branch()) {
         if (opts.debug) {
           std::ostringstream buf;
           buf << "Commit for r" << last_rev << " had no Git-visible modifications";

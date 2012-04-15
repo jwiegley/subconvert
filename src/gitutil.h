@@ -280,11 +280,12 @@ namespace Git
   public:
     TreePtr   tree;
     BranchPtr branch;
+    bool      new_branch;
 
     Commit(Repository * repo, git_commit * commit,
            const std::string& name = "", int attributes = 0040000)
       : Object(repo, reinterpret_cast<git_object *>(commit),
-               name, attributes) {}
+               name, attributes), new_branch(false) {}
 
     operator git_commit *() const {
       return reinterpret_cast<git_commit *>(git_obj);
@@ -299,6 +300,9 @@ namespace Git
 
     virtual bool is_modified() const {
       return tree && tree->is_modified();
+    }
+    bool is_new_branch() const {
+      return new_branch;
     }
 
     bool has_tree() const;
