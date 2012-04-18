@@ -736,6 +736,51 @@ struct ConvertRepository
     return commit;
   }
 
+  void write_commit(Git::CommitPtr commit)
+  {
+    if (opts.debug) {
+      std::ostringstream buf;
+      buf << "Writing commit for r" << last_rev
+          << " on branch " << commit->branch->name;
+      status.debug(buf.str());
+    }
+
+    // Only now does the commit get associated with its branch
+    commit->branch->last_rev = last_rev;
+    commit->branch->commit   = commit;
+    commit->write();
+  }
+
+  void delete_branch(Git::BranchPtr branch)
+  {
+    if (opts.debug) {
+      std::ostringstream buf;
+      buf << "Branch end r" << last_rev << ": " << branch->name;
+      status.debug(buf.str());
+    }
+    branch->last_rev = last_rev;
+
+    if (branch->commit) {
+      // If the branch is to be deleted, tag the last commit on
+      // that branch with a special FOO__deleted_rXXXX name so the
+      // history is preserved.
+      std::ostringstream buf;
+      buf << branch->name << "__deleted_r" << last_rev;
+      std::string tag_name(buf.str());
+      repository.create_tag(branch->commit, tag_name);
+      status.debug(std::string("Wrote tag ") + tag_name);
+    }
+
+    for (branches_map::iterator b = branches.begin();
+         b != branches.end();
+         ++b) {
+      if (branch == (*b).second) {
+        (*b).second = new Git::Branch(*branch);
+        break;
+      }
+    }
+  }
+
   void flush_commit_queue()
   {
     int branches_modified = 0;
@@ -755,48 +800,10 @@ struct ConvertRepository
       (*i)->branch->next_commit.reset();
 
       if ((*i)->has_tree()) {
-        if (opts.debug) {
-          std::ostringstream buf;
-          buf << "Writing commit for r" << last_rev
-              << " on branch " << (*i)->branch->name;
-          status.debug(buf.str());
-        }
-
-        // Only now does the commit get associated with its branch
-        (*i)->branch->last_rev = last_rev;
-        (*i)->branch->commit   = *i;
-        (*i)->write();
-
+        write_commit(*i);
         ++branches_modified;
       } else {
-        Git::BranchPtr branch((*i)->branch);
-
-        if (opts.debug) {
-          std::ostringstream buf;
-          buf << "Branch end r" << last_rev << ": " << branch->name;
-          status.debug(buf.str());
-        }
-        branch->last_rev = last_rev;
-
-        if (branch->commit) {
-          // If the branch is to be deleted, tag the last commit on
-          // that branch with a special FOO__deleted_rXXXX name so the
-          // history is preserved.
-          std::ostringstream buf;
-          buf << branch->name << "__deleted_r" << last_rev;
-          std::string tag_name(buf.str());
-          repository.create_tag((*i)->branch->commit, tag_name);
-          status.debug(std::string("Wrote tag ") + tag_name);
-        }
-          
-        for (branches_map::iterator b = branches.begin();
-             b != branches.end();
-             ++b) {
-          if (branch == (*b).second) {
-            (*b).second = new Git::Branch(*branch);
-            break;
-          }
-        }
+        delete_branch((*i)->branch);
       }
     }
     commit_queue.clear();
