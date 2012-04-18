@@ -368,6 +368,7 @@ namespace Git
   class Branch
   {
   public:
+    Repository *            repository;
     std::string             name;
     boost::filesystem::path prefix;
     bool                    is_tag;
@@ -375,12 +376,14 @@ namespace Git
     CommitPtr               next_commit;
     int                     last_rev;
 
-    Branch(const std::string& _name = "master", bool _is_tag = false)
-      : name(_name), is_tag(_is_tag), last_rev(-1), refc(0) {}
+    Branch(Repository * repo, const std::string& _name = "master",
+           bool _is_tag = false)
+      : repository(repo), name(_name), is_tag(_is_tag), last_rev(-1), refc(0) {}
     Branch(const Branch& other)
-      : name(other.name), prefix(other.prefix),
+      : repository(other.repository), name(other.name), prefix(other.prefix),
         is_tag(other.is_tag), last_rev(-1), refc(0) {}
-    ~Branch() {
+
+    ~Branch() throw() {
       assert(refc == 0);
     }
 
@@ -396,7 +399,7 @@ namespace Git
         boost::checked_delete(this);
     }
 
-    void update(Repository& repository);
+    void update();
 
     friend inline void intrusive_ptr_add_ref(Branch * obj) {
       obj->acquire();

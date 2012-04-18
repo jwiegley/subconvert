@@ -323,11 +323,13 @@ namespace Git
     git_check(git_object_write(*this));
   }
 
-  void Branch::update(Repository& repository)
+  void Branch::update()
   {
     assert(commit);
     assert(commit->is_written());
-    repository.create_ref(commit, name);
+    assert(repository);
+
+    repository->create_ref(commit, name);
   }
 
   void Repository::create_tag(CommitPtr commit, const std::string& name)

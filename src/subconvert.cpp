@@ -357,10 +357,10 @@ struct ConvertRepository
                     StatusDisplay&       _status,
                     const Options&       _opts = Options())
     : dump(_dump), repository(_repository), status(_status), opts(_opts),
-      last_rev(-1), master_branch(new Git::Branch("master")),
-      history_branch(new Git::Branch("flat-history", true)),
+      last_rev(-1), master_branch(new Git::Branch(&repository, "master")),
+      history_branch(new Git::Branch(&repository, "flat-history", true)),
       create_history_commit(true),
-      orphan_branch(new Git::Branch("orphan-history", true)) {}
+      orphan_branch(new Git::Branch(&repository, "orphan-history", true)) {}
 
   const char * unescape_string(const char * str)
   {
@@ -445,7 +445,7 @@ struct ConvertRepository
       if (linebuf[0] == '#')
         continue;
 
-      Git::BranchPtr branch(new Git::Branch);
+      Git::BranchPtr branch(new Git::Branch(&repository));
       int            field  = 0;
 
       for (const char * p = std::strtok(linebuf, "\t");
@@ -877,7 +877,7 @@ struct ConvertRepository
           repository.create_tag((*i).second->commit, (*i).second->name);
           status.info(std::string("Wrote tag ") + (*i).second->name);
         } else {
-          (*i).second->update(repository);
+          (*i).second->update();
           status.info(std::string("Wrote branch ") + (*i).second->name);
         }
       } else {
@@ -995,11 +995,11 @@ int main(int argc, char *argv[])
     commit->set_author("John Wiegley", "johnw@boostpro.com", std::mktime(&then));
     commit->set_message("This is a sample commit.\n");
 
-    Git::Branch branch("feature");
+    Git::Branch branch(&repo, "feature");
     std::cerr << "Updating feature branch..." << std::endl;
     branch.commit = commit;
     commit->write();
-    branch.update(repo);
+    branch.update();
 
     std::cerr << "Cloning commit..." << std::endl;
     commit = commit->clone();   // makes a new commit based on the old one
@@ -1009,11 +1009,11 @@ int main(int argc, char *argv[])
     commit->set_author("John Wiegley", "johnw@boostpro.com", std::mktime(&then));
     commit->set_message("This removes the previous file.\n");
 
-    Git::Branch master("master");
+    Git::Branch master(&repo, "master");
     std::cerr << "Updating master branch..." << std::endl;
     master.commit = commit;
     commit->write();
-    master.update(repo);
+    master.update();
 
     return 0;
   }
