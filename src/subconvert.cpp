@@ -506,10 +506,67 @@ struct ConvertRepository
     return errors;
   }
 
-  int load_modules(const boost::filesystem::path& /*pathname*/)
+  int load_modules(const boost::filesystem::path& pathname)
   {
-    // jww (2011-01-29): NYI
-    return 0;
+    int errors = 0;
+
+    branches.clear();
+
+    static const int MAX_LINE = 8192;
+    char linebuf[MAX_LINE + 1];
+
+    boost::filesystem::ifstream in(pathname);
+
+    std::string curr_module;
+
+    typedef std::map<std::string, std::string> module_map_t;
+    module_map_t module_map;
+
+    typedef std::map<std::string, module_map_t> module_manifest_t;
+    module_manifest_t module_manifest;
+
+    while (in.good() && ! in.eof()) {
+      in.getline(linebuf, MAX_LINE);
+
+      if (linebuf[0] == '#') {
+        continue;
+      }
+      else if (linebuf[0] == '[') {
+        if (! curr_module.empty() && curr_module != "<ignore>") {
+          std::pair<module_manifest_t::iterator, bool> result =
+            module_manifest.insert
+              (module_manifest_t::value_type(curr_module, module_map));
+          assert(result.second);
+          module_map.clear();
+        }
+        curr_module = std::string(linebuf, 1, std::strlen(linebuf) - 2);
+      }
+      else if (const char * p = std::strchr(linebuf, ':')) {
+        std::string target_path = std::string(linebuf, 0, p - linebuf);
+
+        ++p;
+        while (std::isspace(*p))
+          ++p;
+
+        std::string source_path = std::string(p);
+        if (source_path == ".")
+          source_path = target_path;
+
+        if (source_path != "<ignore>") {
+          std::pair<module_map_t::iterator, bool> result =
+            module_map.insert(module_map_t::value_type(source_path, target_path));
+          if (! result.second) {
+            status.warn(std::string("Failed to load from manifest: ") +
+                        std::string("[") + curr_module + "]: " + source_path +
+                        " -> " + target_path);
+          } else {
+            status.debug(std::string("[") + curr_module + "]: " + source_path +
+                         " -> " + target_path);
+          }
+        }
+      }
+    }
+    return errors;
   }
 
   int load_revmap()
