@@ -592,7 +592,8 @@ CommitPtr Repository::read_commit(const git_oid * oid)
 
 #endif // READ_EXISTING_GIT_REPOSITORY
 
-bool Repository::write(int related_revision)
+bool Repository::write(int related_revision,
+                       function<void(BranchPtr)> on_delete_branch)
 {
   std::size_t branches_modified = 0;
 
@@ -630,6 +631,7 @@ bool Repository::write(int related_revision)
       ++branches_modified;
     } else {
       delete_branch(commit->branch, related_revision);
+      on_delete_branch(commit->branch);
     }
   }
   commit_queue.clear();

@@ -45,6 +45,13 @@ namespace {
     }
     finder.finish();
   }
+
+  struct comparator {
+    bool operator()(const ConvertRepository::copy_from_value& left,
+                    const ConvertRepository::copy_from_value& right) {
+      return left.second < right.second;
+    }
+  };
 }
 
 int main(int argc, char *argv[])
@@ -221,6 +228,19 @@ int main(int argc, char *argv[])
             errors += converter.prescan(dump.get_curr_node());
         }
         status.newline();
+
+        converter.copy_from.sort(comparator());
+
+        if (status.debug_mode()) {
+          for (ConvertRepository::copy_from_list::iterator
+                 i = converter.copy_from.begin();
+               i != converter.copy_from.end();
+               ++i) {
+            std::ostringstream buf;
+            buf << (*i).first << " <- " << (*i).second;
+            status.info(buf.str());
+          }
+        }
 
         if (errors > 0) {
           status.warn("Please correct the errors listed above and run again.");

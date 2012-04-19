@@ -37,11 +37,61 @@
 #define assert(x)
 #endif
 
+void ConvertRepository::free_past_trees()
+{
+  // We no longer need copy-from target revisions if we're passed it,
+  // _and_ we're passed the revision that needed it.
+  int popped = -1;
+  while (! copy_from.empty() &&
+         last_rev > copy_from.front().second &&
+         last_rev > copy_from.front().first) {
+    if (status.debug_mode()) {
+      std::ostringstream buf;
+      buf << "r" << copy_from.front().first
+          << " no longer needs r" << copy_from.front().second;
+      status.info(buf.str());
+    }
+    popped = copy_from.front().second;
+    copy_from.pop_front();
+  }
+
+  if (popped >= 0) {
+    if (status.debug_mode()) {
+      std::ostringstream buf;
+      buf << copy_from.size() << " tree reservations remain";
+      status.info(buf.str());
+    }
+
+    if (status.debug_mode()) {
+      std::ostringstream buf;
+      buf << "rev_trees exist from r"
+          << (*rev_trees.begin()).first
+          << " to r"
+          << (*rev_trees.rbegin()).first;
+      status.info(buf.str());
+    }
+
+    // Remove all past trees except the oldest one we need to refer to.
+    rev_trees_map::iterator i = rev_trees.upper_bound(popped);
+
+    if (i != rev_trees.begin()) {
+      --i;
+      if (i != rev_trees.begin()) {
+        if (status.debug_mode()) {
+          std::ostringstream buf;
+          buf << "Deleting rev_trees from r"
+              << (*rev_trees.begin()).first
+              << " to r" << (*i).first;
+          status.info(buf.str());
+        }
+        rev_trees.erase(rev_trees.begin(), i);
+      }
+    }
+  }
+}
+
 Git::TreePtr ConvertRepository::get_past_tree(const SvnDump::File::Node& node)
 {
-  // jww (2012-04-19): This prescan could figure out what to the oldest
-  // desired tree would be for beyond any revision, and thus would allow
-  // me to clean the map up.
   rev_trees_map::const_iterator i =
     rev_trees.upper_bound(node.get_copy_from_rev());
   if (i == rev_trees.end()) {
@@ -240,6 +290,18 @@ bool ConvertRepository::delete_item(const SvnDump::File::Node& node)
   return true;
 }
 
+void ConvertRepository::delete_branch(Git::BranchPtr branch)
+{
+  for (branches_map::iterator b = branches.begin();
+       b != branches.end();
+       ++b) {
+    if (branch == (*b).second) {
+      (*b).second = repository->find_branch(branch->name);
+      break;
+    }
+  }
+}
+
 int ConvertRepository::prescan(const SvnDump::File::Node& node)
 {
   int errors = 0;
@@ -258,7 +320,23 @@ int ConvertRepository::prescan(const SvnDump::File::Node& node)
     }
   }
 
-  if (! repository->branches.empty()) {
+  if (node.has_copy_from()) {
+    if (status.debug_mode()) {
+      std::ostringstream buf;
+      buf << "Copy from: " << dump.get_rev_nr()
+          << " <- " << node.get_copy_from_rev();
+      status.debug(buf.str());
+    }
+
+    if (copy_from.empty() ||
+        ! (copy_from.back().first == dump.get_rev_nr() &&
+           copy_from.back().second == node.get_copy_from_rev())) {
+      copy_from.push_back(copy_from_value(dump.get_rev_nr(),
+                                          node.get_copy_from_rev()));
+    }
+  }
+
+  if (! branches.empty()) {
     // Ignore pathname which only add or modify directories, but
     // do care about all entries which add or modify files, and
     // those which copy directories.
@@ -272,6 +350,7 @@ int ConvertRepository::prescan(const SvnDump::File::Node& node)
         status.warn(buf.str());
         ++errors;
       }
+
       if (node.has_copy_from() && ! find_branch(node.get_copy_from_path())) {
         std::ostringstream buf;
         buf << "Could not find branch for " << node.get_copy_from_path()
@@ -291,7 +370,8 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
   if (rev != last_rev) {
     // Commit any changes to the repository's index.  If there were no
     // Git-visible changes, this will be a no-op.
-    if (repository->write(last_rev)) {
+    if (repository->write(last_rev,
+                          bind(&ConvertRepository::delete_branch, this, _1))) {
       // Record the state of the "historical tree", the one that mirrors
       // the entire state of the Subversion filesystem.  This is
       // necessary when we encounters revisions that copy data from
@@ -305,6 +385,8 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
       assert(result.second);
 #endif
     }
+
+    free_past_trees();
 
     status.update(rev);
     last_rev = rev;
@@ -333,7 +415,8 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
 
 void ConvertRepository::finish()
 {
-  repository->write(last_rev);
+  repository->write(last_rev,
+                    bind(&ConvertRepository::delete_branch, this, _1));
   repository->write_branches();
 
   if (history_branch->commit) {

@@ -483,7 +483,8 @@ namespace Git
     void      delete_branch(BranchPtr branch, int related_revision);
     void      write_branches();
               
-    bool      write(int related_revision = -1);
+    bool      write(int related_revision,
+                    function<void(BranchPtr)> on_delete_branch);
 
     void      create_tag(CommitPtr commit, const std::string& name);
     void      create_ref(git_object * obj, const std::string& name,

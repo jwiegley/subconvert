@@ -47,6 +47,9 @@ struct ConvertRepository
   typedef std::map<filesystem::path, Git::BranchPtr> branches_map;
   typedef branches_map::value_type                   branches_value;
 
+  typedef std::pair<int, int>        copy_from_value;
+  typedef std::list<copy_from_value> copy_from_list;
+
   const SvnDump::File&        dump;
   StatusDisplay&              status;
   Options                     opts;
@@ -55,6 +58,7 @@ struct ConvertRepository
   int                         last_rev;
   rev_trees_map               rev_trees;
   branches_map                branches;
+  copy_from_list              copy_from;
   shared_ptr<Git::Repository> repository;
   Git::BranchPtr              history_branch;
   submodule_list_t            modules_list;
@@ -69,6 +73,7 @@ struct ConvertRepository
                   bind(&ConvertRepository::set_commit_info, this, _1))),
       history_branch(new Git::Branch(repository.get(), "flat-history", true)) {}
 
+  void           free_past_trees();
   Git::TreePtr   get_past_tree(const SvnDump::File::Node& node);
   Git::BranchPtr find_branch(const filesystem::path& pathname);
 
@@ -81,6 +86,8 @@ struct ConvertRepository
   bool add_file(const SvnDump::File::Node& node);
   bool add_directory(const SvnDump::File::Node& node);
   bool delete_item(const SvnDump::File::Node& node);
+
+  void delete_branch(Git::BranchPtr branch);
 
   int  prescan(const SvnDump::File::Node& node);
   void operator()(const SvnDump::File::Node& node);
