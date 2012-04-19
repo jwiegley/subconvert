@@ -33,29 +33,25 @@
 #ifndef _SVNDUMP_H
 #define _SVNDUMP_H
 
-#include <string>
+#include "system.hpp"
 
-#include <boost/optional.hpp>
-
-#define BOOST_FILESYSTEM_VERSION 3
-#include <boost/filesystem/fstream.hpp>
-#include <boost/filesystem/path.hpp>
+using namespace boost;
 
 namespace SvnDump
 {
-  class File : public boost::noncopyable
+  class File : public noncopyable
   {
     int curr_rev;
     int last_rev;
 
     std::string                  rev_author;
     std::time_t                  rev_date;
-    boost::optional<std::string> rev_log;
+    optional<std::string> rev_log;
 
-    boost::filesystem::ifstream * handle;
+    filesystem::ifstream * handle;
 
   public:
-    class Node : public boost::noncopyable
+    class Node : public noncopyable
     {
     public:
       enum Kind {
@@ -76,17 +72,17 @@ namespace SvnDump
 #define STATIC_BUFLEN 65536
 
       int                                      curr_txn;
-      boost::filesystem::path                  pathname;
+      filesystem::path                  pathname;
       Kind                                     kind;
       Action                                   action;
       char *                                   text;
       bool                                     text_allocated;
       char                                     static_buffer[STATIC_BUFLEN];
       int                                      text_len;
-      boost::optional<std::string>             md5_checksum;
-      boost::optional<std::string>             sha1_checksum;
-      boost::optional<int>                     copy_from_rev;
-      boost::optional<boost::filesystem::path> copy_from_path;
+      optional<std::string>             md5_checksum;
+      optional<std::string>             sha1_checksum;
+      optional<int>                     copy_from_rev;
+      optional<filesystem::path> copy_from_path;
 
       friend class File;
 
@@ -106,10 +102,10 @@ namespace SvnDump
         }
         text = NULL;
 
-        md5_checksum   = boost::none;
-        sha1_checksum  = boost::none;
-        copy_from_rev  = boost::none;
-        copy_from_path = boost::none;
+        md5_checksum   = none;
+        sha1_checksum  = none;
+        copy_from_rev  = none;
+        copy_from_path = none;
       }
 
       int get_txn_nr() const {
@@ -121,13 +117,13 @@ namespace SvnDump
       Kind get_kind() const {
         return kind;
       }
-      boost::filesystem::path get_path() const {
+      filesystem::path get_path() const {
         return pathname;
       }
       bool has_copy_from() const {
         return copy_from_rev;
       }
-      boost::filesystem::path get_copy_from_path() const {
+      filesystem::path get_copy_from_path() const {
         return *copy_from_path;
       }
       int get_copy_from_rev() const {
@@ -140,7 +136,7 @@ namespace SvnDump
         return text;
       }
       std::size_t get_text_length() const {
-        return text_len;
+        return static_cast<std::size_t>(text_len);
       }
       bool has_md5() const {
         return md5_checksum;
@@ -161,7 +157,7 @@ namespace SvnDump
 
   public:
     File() : curr_rev(-1), handle(NULL) {}
-    File(const boost::filesystem::path& file) : curr_rev(-1), handle(NULL) {
+    File(const filesystem::path& file) : curr_rev(-1), handle(NULL) {
       open(file);
     }
     ~File() {
@@ -169,11 +165,11 @@ namespace SvnDump
         close();
     }
 
-    void open(const boost::filesystem::path& file) {
+    void open(const filesystem::path& file) {
       if (handle)
         close();
 
-      handle = new boost::filesystem::ifstream(file);
+      handle = new filesystem::ifstream(file);
 
       // Buffer up to 1 megabyte when reading the dump file; this is a
       // nearly free 3% speed gain
@@ -207,7 +203,7 @@ namespace SvnDump
     std::time_t get_rev_date() const {
       return rev_date;
     }
-    boost::optional<std::string> get_rev_log() const {
+    optional<std::string> get_rev_log() const {
       return rev_log;
     }
 
@@ -217,6 +213,16 @@ namespace SvnDump
   private:
     void read_tags();
   };
+
+  struct FilePrinter
+  {
+    const SvnDump::File& dump;
+
+    FilePrinter(const SvnDump::File& _dump) : dump(_dump) {}
+
+    void operator()(const SvnDump::File::Node& node);
+  };
+
 }
 
 #endif // _SVNDUMP_H

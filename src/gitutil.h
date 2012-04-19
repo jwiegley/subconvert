@@ -33,21 +33,11 @@
 #ifndef _GITUTIL_H
 #define _GITUTIL_H
 
-#include <map>
-#include <string>
+#include "system.hpp"
+
+using namespace boost;
 
 #include "config.h"
-
-#include <boost/algorithm/string/predicate.hpp>
-#include <boost/checked_delete.hpp>
-#include <boost/intrusive_ptr.hpp>
-#include <boost/optional.hpp>
-
-#define BOOST_FILESYSTEM_VERSION 3
-#include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/path.hpp>
-
-#include <git2.h>
 
 namespace Git
 {
@@ -70,17 +60,19 @@ namespace Git
   class Repository;
   class Branch;
 
-  typedef boost::intrusive_ptr<Object> ObjectPtr;
+  typedef Repository * RepositoryPtr;
 
-  class Object : public boost::noncopyable
+  typedef intrusive_ptr<Object>  ObjectPtr;
+
+  class Object : public noncopyable
   {
     friend class Repository;
     friend class Tree;
     friend class Commit;
 
   protected:
-    Repository * repository;
-    git_object * git_obj;
+    RepositoryPtr repository;
+    git_object *  git_obj;
 
     mutable int refc;
 
@@ -91,15 +83,16 @@ namespace Git
     void release() const {
       assert(refc > 0);
       if (--refc == 0)
-        boost::checked_delete(this);
+        checked_delete(this);
     }
 
   public:
-    std::string      name;
-    int              attributes;
+    std::string name;
+    int         attributes;
+
     git_tree_entry * tree_entry;
 
-    Object(Repository * _repository, git_object * _git_obj,
+    Object(RepositoryPtr _repository, git_object * _git_obj,
            const std::string& _name = "", int _attributes = 0)
       : repository(_repository), git_obj(_git_obj), refc(0),
         name(_name), attributes(_attributes), tree_entry(NULL) {}
@@ -148,12 +141,12 @@ namespace Git
     }
   };
 
-  typedef boost::intrusive_ptr<Blob> BlobPtr;
+  typedef intrusive_ptr<Blob> BlobPtr;
 
   class Blob : public Object
   {
   public:
-    Blob(Repository * repository, git_blob * blob,
+    Blob(RepositoryPtr repository, git_blob * blob,
          const std::string& name, int attributes = 0100644)
       : Object(repository, reinterpret_cast<git_object *>(blob),
                name, attributes) {}
@@ -173,7 +166,7 @@ namespace Git
     virtual void write() {}
   };
 
-  typedef boost::intrusive_ptr<Tree> TreePtr;
+  typedef intrusive_ptr<Tree> TreePtr;
 
   class Tree : public Object
   {
@@ -189,8 +182,8 @@ namespace Git
     bool        written;
     bool        modified;
 
-    ObjectPtr do_lookup(boost::filesystem::path::iterator segment,
-                        boost::filesystem::path::iterator end)
+    ObjectPtr do_lookup(filesystem::path::iterator segment,
+                        filesystem::path::iterator end)
     {
       std::string name = (*segment).string();
 
@@ -208,14 +201,14 @@ namespace Git
       return result;
     }
 
-    bool do_update(boost::filesystem::path::iterator segment,
-                   boost::filesystem::path::iterator end, ObjectPtr obj);
+    bool do_update(filesystem::path::iterator segment,
+                   filesystem::path::iterator end, ObjectPtr obj);
 
-    void do_remove(boost::filesystem::path::iterator segment,
-                   boost::filesystem::path::iterator end);
+    void do_remove(filesystem::path::iterator segment,
+                   filesystem::path::iterator end);
 
   public:
-    Tree(Repository * repository, git_tree * tree,
+    Tree(RepositoryPtr repository, git_tree * tree,
          const std::string& name, int attributes = 0040000)
       : Object(repository, reinterpret_cast<git_object *>(tree),
                name, attributes), written(false), modified(false) {}
@@ -253,15 +246,15 @@ namespace Git
       return entries.empty();
     }
 
-    ObjectPtr lookup(const boost::filesystem::path& pathname) {
+    ObjectPtr lookup(const filesystem::path& pathname) {
       return do_lookup(pathname.begin(), pathname.end());
     }
 
-    void update(const boost::filesystem::path& pathname, ObjectPtr obj) {
+    void update(const filesystem::path& pathname, ObjectPtr obj) {
       do_update(pathname.begin(), pathname.end(), obj);
     }
 
-    void remove(const boost::filesystem::path& pathname) {
+    void remove(const filesystem::path& pathname) {
       do_remove(pathname.begin(), pathname.end());
     }
 
@@ -270,8 +263,8 @@ namespace Git
     void dump_tree(std::ostream& out, int depth = 0);
   };
 
-  typedef boost::intrusive_ptr<Commit> CommitPtr;
-  typedef boost::intrusive_ptr<Branch> BranchPtr;
+  typedef intrusive_ptr<Commit> CommitPtr;
+  typedef intrusive_ptr<Branch> BranchPtr;
 
   class Commit : public Object
   {
@@ -282,7 +275,7 @@ namespace Git
     BranchPtr branch;
     bool      new_branch;
 
-    Commit(Repository * repo, git_commit * commit,
+    Commit(RepositoryPtr repo, git_commit * commit,
            const std::string& name = "", int attributes = 0040000)
       : Object(repo, reinterpret_cast<git_object *>(commit),
                name, attributes), new_branch(false) {}
@@ -306,7 +299,7 @@ namespace Git
     }
 
     bool has_tree() const;
-    void set_tree(Git::TreePtr _tree) {
+    void set_tree(TreePtr _tree) {
       tree = _tree;
     }
 
@@ -350,12 +343,12 @@ namespace Git
       git_commit_set_committer(*this, signature);
     }
 
-    ObjectPtr lookup(const boost::filesystem::path& pathname) {
+    ObjectPtr lookup(const filesystem::path& pathname) {
       return tree ? tree->lookup(pathname) : tree;
     }
 
-    void update(const boost::filesystem::path& pathname, ObjectPtr obj);
-    void remove(const boost::filesystem::path& pathname);
+    void update(const filesystem::path& pathname, ObjectPtr obj);
+    void remove(const filesystem::path& pathname);
 
     virtual void write();
 
@@ -368,20 +361,20 @@ namespace Git
   class Branch
   {
   public:
-    Repository *            repository;
-    std::string             name;
-    boost::filesystem::path prefix;
-    bool                    is_tag;
-    CommitPtr               commit;
-    CommitPtr               next_commit;
-    int                     last_rev;
+    RepositoryPtr    repository;
+    std::string      name;
+    filesystem::path prefix;
+    bool             is_tag;
+    CommitPtr        commit;
+    CommitPtr        next_commit;
 
-    Branch(Repository * repo, const std::string& _name = "master",
+    Branch(RepositoryPtr repo, const std::string& _name = "master",
            bool _is_tag = false)
-      : repository(repo), name(_name), is_tag(_is_tag), last_rev(-1), refc(0) {}
+      : repository(repo), name(_name), is_tag(_is_tag), refc(0) {}
+
     Branch(const Branch& other)
       : repository(other.repository), name(other.name), prefix(other.prefix),
-        is_tag(other.is_tag), last_rev(-1), refc(0) {}
+        is_tag(other.is_tag), refc(0) {}
 
     ~Branch() throw() {
       assert(refc == 0);
@@ -396,10 +389,11 @@ namespace Git
     void release() const {
       assert(refc > 0);
       if (--refc == 0)
-        boost::checked_delete(this);
+        checked_delete(this);
     }
 
-    void update();
+    CommitPtr get_commit(BranchPtr from_branch = NULL);
+    void      update(CommitPtr ptr = NULL);
 
     friend inline void intrusive_ptr_add_ref(Branch * obj) {
       obj->acquire();
@@ -409,12 +403,51 @@ namespace Git
     }
   };
 
+  struct Logger
+  {
+    virtual bool debug_mode() const = 0;
+
+    virtual void debug(const std::string& message) const = 0;
+    virtual void info(const std::string& message) const = 0;
+    virtual void warn(const std::string& message) const = 0;
+    virtual void error(const std::string& message) const = 0;
+
+    virtual ~Logger() throw() {}
+  };
+
+  struct DumbLogger : public Logger
+  {
+    virtual bool debug_mode() const { return false; }
+
+    virtual void debug(const std::string&) const {}
+    virtual void info(const std::string&) const {}
+    virtual void warn(const std::string& message) const {
+      std::cerr << message << std::endl;
+    }
+    virtual void error(const std::string& message) const {
+      std::cerr << message << std::endl;
+    }
+  };
+
+  inline void no_commit_info(CommitPtr) {}
+
   class Repository
   {
     git_repository * repo;
 
   public:
-    Repository(const boost::filesystem::path& pathname) {
+    typedef std::map<std::string, BranchPtr> branches_map;
+    typedef branches_map::value_type         branches_value;
+
+    Logger&                   log;
+    branches_map              branches;
+    std::vector<CommitPtr>    commit_queue;
+    function<void(CommitPtr)> set_commit_info;
+
+    Repository(const filesystem::path& pathname, Logger& _log,
+               function<void(CommitPtr)> _set_commit_info = no_commit_info)
+      : log(_log), set_commit_info(_set_commit_info)
+    {
       if (git_repository_open(&repo, pathname.string().c_str()) != 0)
         if (git_repository_open(&repo,
                                 (pathname / ".git").string().c_str()) != 0)
@@ -430,63 +463,44 @@ namespace Git
       return repo;
     }
 
-    BlobPtr create_blob(const std::string& name,
-                        const char * data, std::size_t len,
-                        int attributes = 0100644)
-    {
-      git_blob * git_blob;
-      git_check(git_blob_new(&git_blob, repo));
-      git_check(git_blob_set_rawcontent(git_blob, data, len));
-      git_check(git_object_write(reinterpret_cast<git_object *>(git_blob)));
-
-      Blob * blob = new Blob(this, git_blob, name, attributes);
-      blob->repository = this;
-      return blob;
-    }
-
-    TreePtr create_tree(const std::string& name = "", int attributes = 040000)
-    {
-      git_tree * git_tree;
-      git_check(git_tree_new(&git_tree, repo));
-
-      Tree * tree = new Tree(this, git_tree, name, attributes);
-      tree->repository = this;
-      return tree;
-    }
-
-    CommitPtr create_commit()
-    {
-      git_commit * git_commit;
-      git_check(git_commit_new(&git_commit, repo));
-      return new Commit(this, git_commit);
-    }
-
-    void create_tag(CommitPtr commit, const std::string& name);
-
-    void create_ref(git_object * obj, const std::string& name,
-                    bool is_tag = false)
-    {
-      create_file(boost::filesystem::path("refs")
-                  / (is_tag ? "tags" : "heads") / name,
-                  git_sha1(git_object_id(obj)));
-    }
-
-    void create_ref(ObjectPtr obj, const std::string& name, bool is_tag = false)
-    {
-      create_file(boost::filesystem::path("refs")
-                  / (is_tag ? "tags" : "heads") / name, git_sha1(*obj));
-    }
-
+    BlobPtr   create_blob(const std::string& name,
+                          const char * data, std::size_t len,
+                          int attributes = 0100644);
+              
+    TreePtr   create_tree(const std::string& name = "",
+                          int attributes = 040000);
+#if defined(READ_EXISTING_GIT_REPOSITORY)
     TreePtr   read_tree(git_tree * git_tree, const std::string& name = "",
                         int attributes = 0040000);
+#endif
+              
+    CommitPtr create_commit();
+#if defined(READ_EXISTING_GIT_REPOSITORY)
     CommitPtr read_commit(const git_oid * oid);
+#endif
 
-    struct commit_iterator {
+    BranchPtr find_branch(const std::string& name, BranchPtr default_obj = NULL);
+    void      delete_branch(BranchPtr branch, int related_revision);
+    void      write_branches();
+              
+    bool      write(int related_revision = -1);
+
+    void      create_tag(CommitPtr commit, const std::string& name);
+    void      create_ref(git_object * obj, const std::string& name,
+                         bool is_tag = false);
+    void      create_ref(ObjectPtr obj, const std::string& name,
+                         bool is_tag = false);
+    void      create_file(const filesystem::path& pathname,
+                          const std::string& content = "");
+
+    struct commit_iterator
+    {
       typedef CommitPtr value_type;
 
-      CommitPtr                      commit;
-      Repository *                   repo;
-      boost::shared_ptr<git_revwalk> walk;
+      CommitPtr     commit;
+      RepositoryPtr repo;
+
+      shared_ptr<git_revwalk> walk;
 
       commit_iterator() : commit(NULL), repo(NULL) {}
       ~commit_iterator() {}
@@ -519,16 +533,13 @@ namespace Git
       git_check(git_revwalk_new(&walk, repo));
 
       start.repo = this;
-      start.walk = boost::shared_ptr<git_revwalk>(walk, git_revwalk_free);
+      start.walk = shared_ptr<git_revwalk>(walk, git_revwalk_free);
 
       return start;
     }
     commit_iterator commits_end() {
       return commit_iterator();
     }
-
-    void create_file(const boost::filesystem::path& pathname,
-                     const std::string& content = "");
   };
 }
 

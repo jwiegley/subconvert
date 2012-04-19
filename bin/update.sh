@@ -16,11 +16,13 @@ $MIGRATE/bin/modules.sh reset
 
 cd $BOOST
 
-(cd boost-git; git pull; git submodule update --init)
+(cd boost-git; git reset --hard HEAD; git pull; \
+ git submodule foreach "git reset --hard HEAD"; \
+ git submodule update --init)
 (cd boost-private; git pull)
 (cd boost-svn; git pull)
 (cd Boost.Defrag; git pull)
-(cd installer; git pull)
+#(cd installer; git pull)
 (cd ryppl; git pull)
 (cd boost-modularize; git pull)
 
@@ -29,6 +31,8 @@ svnadmin dump -q boost.svnrepo > boost.svnrepo.dump
 
 perl -i -pe "s%url =.*%url = file://$PWD/boost.svnrepo%;" boost-clone/.git/config
 (cd boost-clone; git svn fetch; git reset --hard trunk)
+
+exit 0
 
 if [[ ! -d $RAMDISK ]]; then
     mkramdisk
@@ -48,17 +52,16 @@ if [[ -d $RAMDISK/cpp ]]; then
         -B $MIGRATE/doc/branches.txt                                    \
         convert $BOOST/boost.svnrepo.dump
     git symbolic-ref HEAD refs/heads/trunk
-    git checkout trunk
-    git gc
-
-    sleep 300
 
     git remote add origin git@github.com:ryppl/boost-history.git
     git push -f --all origin
     git push -f --mirror origin
     git push -f --tags origin
 
+    git gc
+    sleep 30
     rsync -av --delete .git/ $BOOST/boost-history.git/
+
     cd $BOOST
     sudo umount $RAMDISK
     rm -fr $RAMDISK
