@@ -494,6 +494,8 @@ namespace Git
     void      create_file(const filesystem::path& pathname,
                           const std::string& content = "");
 
+#if defined(READ_EXISTING_GIT_REPOSITORY)
+
     struct commit_iterator
     {
       typedef CommitPtr value_type;
@@ -541,6 +543,8 @@ namespace Git
     commit_iterator commits_end() {
       return commit_iterator();
     }
+
+#endif // READ_EXISTING_GIT_REPOSITORY
   };
 }
 
