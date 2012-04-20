@@ -39,6 +39,9 @@
 
 void ConvertRepository::free_past_trees()
 {
+  // jww (2012-04-20): We could also free branches here that we know
+  // will never receive another commit.
+
   // We no longer need copy-from target revisions if we're passed it,
   // _and_ we're passed the revision that needed it.
   int popped = -1;
