@@ -82,8 +82,10 @@ namespace Git
     }
     void release() const {
       assert(refc > 0);
-      if (--refc == 0)
+      if (--refc == 0) {
+        const_cast<Object *>(this)->deallocate();
         checked_delete(this);
+      }
     }
 
   public:
@@ -100,14 +102,26 @@ namespace Git
       assert(refc == 0);
     }
 
+    virtual void allocate() = 0;
+    virtual void deallocate() {
+      if (git_obj != NULL) {
+        // Only free the object if it's been written, because otherwise
+        // libgit2 fails to remove unwritten objects properly from its
+        // hash->object table, and will then try later to free it again.
+        if (git_object_id(git_obj))
+          git_object_free(git_obj);
+        git_obj = NULL;
+      }
+    }
+
     operator git_object *() {
       return git_obj;
     }
-    operator const git_oid *() const {
+
+    virtual operator const git_oid *() const {
       return git_object_id(git_obj);
     }
-
-    const git_oid * get_oid() const {
+    virtual const git_oid * get_oid() const {
       return git_object_id(git_obj);
     }
 
@@ -131,7 +145,9 @@ namespace Git
 
     virtual ObjectPtr copy_to_name(const std::string& to_name) = 0;
 
-    virtual void write() = 0;
+    virtual void write() {
+      git_check(git_object_write(*this));
+    }
 
     friend inline void intrusive_ptr_add_ref(Object * obj) {
       obj->acquire();
@@ -145,14 +161,39 @@ namespace Git
 
   class Blob : public Object
   {
+  protected:
+    const git_oid * cached_oid;
+
   public:
-    Blob(RepositoryPtr repository, git_blob * blob,
+    Blob(RepositoryPtr repository, git_blob * blob, const git_oid * transfer,
          const std::string& name, int attributes = 0100644)
       : Object(repository, reinterpret_cast<git_object *>(blob),
-               name, attributes) {}
+               name, attributes) {
+      if (transfer) {
+        cached_oid = transfer;
+      } else {
+        write();
+        cached_oid = Object::get_oid();
+      }
+    }
+
+    virtual void allocate() {
+      // This gets allocated by Repository::create_blob, not here.
+    }
 
     operator git_blob *() const {
       return reinterpret_cast<git_blob *>(git_obj);
+    }
+
+    virtual operator const git_oid *() const {
+      return cached_oid;
+    }
+    virtual const git_oid * get_oid() const {
+      return cached_oid;
+    }
+
+    virtual bool is_written() const {
+      return true;
     }
 
     virtual ObjectPtr copy_to_name(const std::string& to_name) {
@@ -160,10 +201,8 @@ namespace Git
         return this;
       else
         return new Blob(repository, reinterpret_cast<git_blob *>(git_obj),
-                        to_name, attributes);
+                        cached_oid, to_name, attributes);
     }
-
-    virtual void write() {}
   };
 
   typedef intrusive_ptr<Tree> TreePtr;
@@ -214,6 +253,8 @@ namespace Git
                name, attributes), written(false), modified(false) {}
 
     Tree(const Tree& other);
+
+    virtual void allocate();
 
     operator git_tree *() const {
       return reinterpret_cast<git_tree *>(git_obj);
@@ -271,14 +312,17 @@ namespace Git
     friend class Repository;
 
   public:
+    CommitPtr parent;
     TreePtr   tree;
     BranchPtr branch;
     bool      new_branch;
 
-    Commit(RepositoryPtr repo, git_commit * commit,
-           const std::string& name = "", int attributes = 0040000)
-      : Object(repo, reinterpret_cast<git_object *>(commit),
-               name, attributes), new_branch(false) {}
+    Commit(RepositoryPtr repo, git_commit * commit, CommitPtr _parent = NULL,
+           const std::string& name = "", int attributes = 0040000);
+
+    virtual void allocate() {
+      // This gets allocated by Repository::create_commit, not here.
+    }
 
     operator git_commit *() const {
       return reinterpret_cast<git_commit *>(git_obj);
@@ -314,14 +358,6 @@ namespace Git
 #else
     CommitPtr clone(bool with_copy = true);
 #endif
-
-    void add_parent(CommitPtr parent) {
-      if (! git_object_id(*parent))
-        parent->write();
-
-      if (git_commit_add_parent(*this, *parent))
-        throw std::logic_error("Could not add parent to commit");
-    }
 
     std::string get_message() const {
       return git_commit_message(*this);
@@ -474,7 +510,7 @@ namespace Git
                         int attributes = 0040000);
 #endif
               
-    CommitPtr create_commit();
+    CommitPtr create_commit(CommitPtr parent = NULL);
 #if defined(READ_EXISTING_GIT_REPOSITORY)
     CommitPtr read_commit(const git_oid * oid);
 #endif

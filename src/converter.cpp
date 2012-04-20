@@ -167,7 +167,7 @@ void ConvertRepository::set_commit_info(Git::CommitPtr commit)
 #if 0
   // jww (2012-04-18): We also need a "super repository" that contains a
   // .gitmodules file which is updated every time a submodule is updated.
-  buf << "Historical-Commit: " << rev;
+  buf << "\nHistory-Commit: " << rev;
 #endif
 
   commit->set_message(buf.str());
@@ -243,6 +243,9 @@ bool ConvertRepository::add_file(const SvnDump::File::Node& node)
 
     return true;
   }
+  else {
+    status.debug("No actual change detected.");
+  }
 
   return false;
 }
@@ -278,6 +281,8 @@ bool ConvertRepository::add_directory(const SvnDump::File::Node& node)
       update_object(pathname, obj, from_branch);
     }
     return true;
+  } else {
+    status.debug("No actual change detected.");
   }
   return false;
 }
@@ -412,6 +417,9 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
              kind   == SvnDump::File::Node::KIND_DIR   &&
              action == SvnDump::File::Node::ACTION_ADD) {
       add_directory(node);
+    }
+    else {
+      status.debug("Subversion change ignored.");
     }
   }
 }

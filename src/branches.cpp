@@ -52,7 +52,7 @@ int Branches::load_branches(const filesystem::path& pathname,
     if (linebuf[0] == '#')
       continue;
 
-    Git::BranchPtr branch(new Git::Branch(converter.repository.get()));
+    Git::BranchPtr branch(new Git::Branch(converter.repository));
     int            field  = 0;
 
     for (const char * p = std::strtok(linebuf, "\t");

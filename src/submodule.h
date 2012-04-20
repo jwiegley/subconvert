@@ -49,8 +49,7 @@ struct Submodule : public noncopyable
   module_map_t       file_mappings;
   ConvertRepository& parent;
   Git::TreePtr       rev_tree;
-
-  shared_ptr<Git::Repository> repository;
+  Git::Repository *  repository;
 
   Submodule(std::string _pathname, module_map_t _file_mappings,
             ConvertRepository& _parent);

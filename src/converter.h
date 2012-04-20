@@ -59,7 +59,7 @@ struct ConvertRepository
   rev_trees_map               rev_trees;
   branches_map                branches;
   copy_from_list              copy_from;
-  shared_ptr<Git::Repository> repository;
+  Git::Repository *           repository; // let it leak!
   Git::BranchPtr              history_branch;
   submodule_list_t            modules_list;
 
@@ -71,7 +71,13 @@ struct ConvertRepository
       repository(new Git::Repository
                  (pathname, status,
                   bind(&ConvertRepository::set_commit_info, this, _1))),
-      history_branch(new Git::Branch(repository.get(), "flat-history", true)) {}
+      history_branch(new Git::Branch(repository, "flat-history", true)) {}
+
+  ~ConvertRepository() {
+#ifdef ASSERTS
+    checked_delete(repository);
+#endif
+  }
 
   void           free_past_trees();
   Git::TreePtr   get_past_tree(const SvnDump::File::Node& node);

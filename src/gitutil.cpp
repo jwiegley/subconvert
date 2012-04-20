@@ -237,6 +237,11 @@ Tree::Tree(const Tree& other)
   : Object(other.repository, NULL, other.name, other.attributes),
     entries(other.entries), written(false), modified(false)
 {
+  allocate();
+}
+
+void Tree::allocate()
+{
   git_tree * tree_obj;
   git_check(git_tree_new(&tree_obj, *repository));
 
@@ -278,12 +283,14 @@ void Tree::write()
       ObjectPtr obj((*i).second);
       assert(obj->name == (*i).first);
 
-      if (! obj->is_blob())
+      if (! obj->is_written())
         obj->write();
 
       git_check(git_tree_add_entry_unsorted(&obj->tree_entry, *this, *obj,
                                             obj->name.c_str(),
                                             obj->attributes));
+      if (obj->is_blob())
+        obj->deallocate();
     }
 
     assert(check_size(*this));
@@ -318,6 +325,20 @@ void Tree::dump_tree(std::ostream& out, int depth)
     } else {
       out << '\n';
     }
+  }
+}
+
+Commit::Commit(RepositoryPtr repo, git_commit * commit, CommitPtr _parent,
+           const std::string& name, int attributes)
+  : Object(repo, reinterpret_cast<git_object *>(commit),
+           name, attributes), parent(_parent), new_branch(false)
+{
+  if (parent) {
+    if (! git_object_id(*parent))
+      parent->write();
+
+    if (git_commit_add_parent(*this, *parent))
+      throw std::logic_error("Could not add parent to commit");
   }
 }
 
@@ -366,14 +387,11 @@ bool Commit::has_tree() const
  */
 CommitPtr Commit::clone(bool with_copy)
 {
-  CommitPtr new_commit = repository->create_commit();
-
   if (! is_written())
     write();
 
+  CommitPtr new_commit = repository->create_commit(this);
   new_commit->tree = with_copy ? new Tree(*tree) : tree;
-  new_commit->add_parent(this);
-
   return new_commit;
 }
 
@@ -412,6 +430,9 @@ void Commit::write()
   git_commit_set_tree(*this, *subtree);
 
   git_check(git_object_write(*this));
+
+  // Once written, we no longer need the parent
+  parent = NULL;
 }
 
 /**
@@ -493,9 +514,8 @@ BlobPtr Repository::create_blob(const std::string& name, const char * data,
   git_blob * git_blob;
   git_check(git_blob_new(&git_blob, repo));
   git_check(git_blob_set_rawcontent(git_blob, data, len));
-  git_check(git_object_write(reinterpret_cast<git_object *>(git_blob)));
 
-  Blob * blob = new Blob(this, git_blob, name, attributes);
+  Blob * blob = new Blob(this, git_blob, NULL, name, attributes);
   blob->repository = this;
   return blob;
 }
@@ -533,7 +553,8 @@ TreePtr Repository::read_tree(git_tree * tree_obj, const std::string& name,
     switch (git_object_type(git_obj)) {
     case GIT_OBJ_BLOB: {
       git_blob * blob_obj(reinterpret_cast<git_blob *>(git_obj));
-      BlobPtr    blob(new Blob(this, blob_obj, entry_name, entry_attributes));
+      BlobPtr    blob(new Blob(this, blob_obj, NULL, entry_name,
+                               entry_attributes));
       blob->tree_entry = entry;
       tree->entries.insert(Tree::entries_pair(entry_name, blob));
       break;
@@ -561,11 +582,11 @@ TreePtr Repository::read_tree(git_tree * tree_obj, const std::string& name,
 
 #endif // READ_EXISTING_GIT_REPOSITORY
 
-CommitPtr Repository::create_commit()
+CommitPtr Repository::create_commit(CommitPtr parent)
 {
   git_commit * git_commit;
   git_check(git_commit_new(&git_commit, repo));
-  return new Commit(this, git_commit);
+  return new Commit(this, git_commit, parent);
 }
 
 #if defined(READ_EXISTING_GIT_REPOSITORY)
