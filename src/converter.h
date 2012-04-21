@@ -44,24 +44,23 @@ struct ConvertRepository
   typedef std::map<int, Git::TreePtr> rev_trees_map;
   typedef rev_trees_map::value_type   rev_trees_value;
 
-  typedef std::map<filesystem::path, Git::BranchPtr> branches_map;
-  typedef branches_map::value_type                   branches_value;
-
   typedef std::pair<int, int>        copy_from_value;
   typedef std::list<copy_from_value> copy_from_list;
 
-  const SvnDump::File&        dump;
-  StatusDisplay&              status;
-  Options                     opts;
-  Authors                     authors;
-  int                         rev;
-  int                         last_rev;
-  rev_trees_map               rev_trees;
-  branches_map                branches;
-  copy_from_list              copy_from;
-  Git::Repository *           repository; // let it leak!
-  Git::BranchPtr              history_branch;
-  submodule_list_t            modules_list;
+typedef std::vector<std::pair<Git::BranchPtr,
+                              filesystem::path> > branches_mapping_t;
+
+  const SvnDump::File& dump;
+  StatusDisplay&       status;
+  Options              opts;
+  Authors              authors;
+  int                  rev;
+  int                  last_rev;
+  rev_trees_map        rev_trees;
+  copy_from_list       copy_from;
+  Git::Repository *    repository; // let it leak!
+  Git::BranchPtr       history_branch;
+  submodule_list_t     modules_list;
 
   ConvertRepository(const SvnDump::File&           _dump,
                     const filesystem::path& pathname,
@@ -79,11 +78,13 @@ struct ConvertRepository
 #endif
   }
 
-  void           free_past_trees();
-  Git::TreePtr   get_past_tree(const SvnDump::File::Node& node);
-  Git::BranchPtr find_branch(const filesystem::path& pathname);
+  void         free_past_trees();
+  Git::TreePtr get_past_tree(const SvnDump::File::Node& node);
 
   void set_commit_info(Git::CommitPtr commit);
+
+  void applicable_branches(const filesystem::path& pathname,
+                           branches_mapping_t& branches);
 
   void update_object(const filesystem::path& pathname,
                      Git::ObjectPtr obj = NULL,
@@ -95,8 +96,6 @@ struct ConvertRepository
   bool add_file(const SvnDump::File::Node& node);
   bool add_directory(const SvnDump::File::Node& node);
   bool delete_item(const SvnDump::File::Node& node);
-
-  void delete_branch(Git::BranchPtr branch);
 
   int  prescan(const SvnDump::File::Node& node);
   void operator()(const SvnDump::File::Node& node);

@@ -40,8 +40,6 @@ int Branches::load_branches(const filesystem::path& pathname,
 {
   int errors = 0;
 
-  converter.branches.clear();
-
   static const int MAX_LINE = 8192;
   char linebuf[MAX_LINE + 1];
 
@@ -79,40 +77,21 @@ int Branches::load_branches(const filesystem::path& pathname,
     if (branch->prefix.empty() || branch->name.empty())
       continue;
 
-    if (! converter.repository->find_branch(branch->name, branch))
+    if (! converter.repository->find_branch_by_name(branch->name, branch))
+      ++errors;
+    if (! converter.repository->find_branch_by_path(branch->prefix, branch))
       ++errors;
 
-    std::pair<ConvertRepository::branches_map::iterator, bool> result =
-      converter.branches.insert
-      (ConvertRepository::branches_value(branch->prefix, branch));
-    if (! result.second) {
-      status.warn(std::string("Branch prefix repeated: ") +
-                  branch->prefix.string());
-      ++errors;
-    } else {
-      for (filesystem::path dirname(branch->prefix.parent_path());
-           ! dirname.empty();
-           dirname = dirname.parent_path()) {
-        ConvertRepository::branches_map::iterator i =
-          converter.branches.find(dirname);
-        if (i != converter.branches.end()) {
-          status.warn(std::string("Parent of branch prefix ") +
-                      branch->prefix.string() + " exists: " +
-                      (*i).second->prefix.string());
-          ++errors;
-        }
-      }
-
-      for (ConvertRepository::branches_map::iterator
-             i = converter.branches.begin();
-           i != converter.branches.end();
-           ++i) {
-        if (branch != (*i).second &&
-            branch->name == (*i).second->name) {
-          status.warn(std::string("Branch name repeated: ") +
-                      branch->prefix.string());
-          ++errors;
-        }
+    for (filesystem::path dirname(branch->prefix.parent_path());
+         ! dirname.empty();
+         dirname = dirname.parent_path()) {
+      Git::Repository::branches_path_map::iterator i =
+        converter.repository->branches_by_path.find(dirname);
+      if (i != converter.repository->branches_by_path.end()) {
+        status.warn(std::string("Parent of branch prefix ") +
+                    branch->prefix.string() + " exists: " +
+                    (*i).second->prefix.string());
+        ++errors;
       }
     }
   }

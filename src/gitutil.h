@@ -476,11 +476,15 @@ namespace Git
     git_repository * repo;
 
   public:
-    typedef std::map<std::string, BranchPtr> branches_map;
-    typedef branches_map::value_type         branches_value;
+    typedef std::map<std::string, BranchPtr>      branches_name_map;
+    typedef branches_name_map::value_type         branches_name_value;
+
+    typedef std::map<filesystem::path, BranchPtr> branches_path_map;
+    typedef branches_path_map::value_type         branches_path_value;
 
     Logger&                   log;
-    branches_map              branches;
+    branches_name_map         branches_by_name;
+    branches_path_map         branches_by_path;
     std::vector<CommitPtr>    commit_queue;
     function<void(CommitPtr)> set_commit_info;
 
@@ -519,12 +523,13 @@ namespace Git
     CommitPtr read_commit(const git_oid * oid);
 #endif
 
-    BranchPtr find_branch(const std::string& name, BranchPtr default_obj = NULL);
+    BranchPtr find_branch_by_name(const std::string& name,
+                                  BranchPtr default_obj = NULL);
+    BranchPtr find_branch_by_path(const filesystem::path& name,
+                                  BranchPtr default_obj = NULL);
     void      delete_branch(BranchPtr branch, int related_revision);
+    bool      write(int related_revision);
     void      write_branches();
-
-    bool      write(int related_revision,
-                    function<void(BranchPtr)> on_delete_branch);
     void      garbage_collect();
 
     void      create_tag(CommitPtr commit, const std::string& name);

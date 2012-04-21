@@ -31,22 +31,22 @@
  */
 
 #include "submodule.h"
+#include "converter.h"
 
 Submodule::Submodule(std::string _pathname, module_map_t _file_mappings,
                      ConvertRepository& _parent)
   : pathname(_pathname), file_mappings(_file_mappings), parent(_parent)
 {
   filesystem::create_directories(pathname);
-  // Initialize a Git repository for this submodule in the subdirectory
-  std::system((std::string("git --git-dir=") + pathname + "/.git init").c_str());
 
-#if 0
-  repository.reset
-    (new Git::Repository
-     (filesystem::system_complete(pathname), parent.status,
-      function<void(Git::CommitPtr)>
-      (bind(&ConvertRepository::set_commit_info, this))));
-#endif
+  // Initialize a Git repository for this submodule in the subdirectory
+  std::system((std::string("git --git-dir=\"") +
+               pathname + "/.git\" init").c_str());
+
+  repository =
+    new Git::Repository(filesystem::system_complete(pathname),
+                        parent.status, function<void(Git::CommitPtr)>
+                        (bind(&ConvertRepository::set_commit_info, &parent, _1)));
 }
 
 int Submodule::load_modules(const filesystem::path& modules_file,
@@ -73,9 +73,7 @@ int Submodule::load_modules(const filesystem::path& modules_file,
     }
     else if (linebuf[0] == '[') {
       if (! curr_module.empty() && curr_module != "<ignore>") {
-        modules_list.push_back
-          (shared_ptr<Submodule>
-           (new Submodule(curr_module, module_map, parent)));
+        modules_list.push_back(new Submodule(curr_module, module_map, parent));
         module_map.clear();
       }
       curr_module = std::string(linebuf, 1, std::strlen(linebuf) - 2);

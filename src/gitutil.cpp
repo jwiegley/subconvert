@@ -600,8 +600,7 @@ CommitPtr Repository::read_commit(const git_oid * oid)
 
 #endif // READ_EXISTING_GIT_REPOSITORY
 
-bool Repository::write(int related_revision,
-                       function<void(BranchPtr)> on_delete_branch)
+bool Repository::write(int related_revision)
 {
   std::size_t branches_modified = 0;
 
@@ -639,7 +638,6 @@ bool Repository::write(int related_revision,
       ++branches_modified;
     } else {
       delete_branch(commit->branch, related_revision);
-      on_delete_branch(commit->branch);
     }
   }
   commit_queue.clear();
@@ -648,18 +646,18 @@ bool Repository::write(int related_revision,
 }
 
 /**
- * Find the branch within the repository associated with the Subversion
- * pathname.
+ * Find the branch within the repository associated with the name.
  */
-BranchPtr Repository::find_branch(const std::string& name, BranchPtr default_obj)
+BranchPtr Repository::find_branch_by_name(const std::string& name,
+                                          BranchPtr default_obj)
 {
-  branches_map::iterator i = branches.find(name);
-  if (i != branches.end())
+  branches_name_map::iterator i = branches_by_name.find(name);
+  if (i != branches_by_name.end())
     return (*i).second;
 
   if (default_obj) {
-    std::pair<branches_map::iterator, bool> result =
-      branches.insert(branches_value(name, default_obj));
+    std::pair<branches_name_map::iterator, bool> result =
+      branches_by_name.insert(branches_name_value(name, default_obj));
     if (! result.second) {
       log.warn(std::string("Branch name repeated: ") + name);
       return NULL;
@@ -667,6 +665,38 @@ BranchPtr Repository::find_branch(const std::string& name, BranchPtr default_obj
     return default_obj;
   }
 
+  assert(false);
+  return NULL;
+}
+
+/**
+ * Find the branch within the repository associated with the Subversion
+ * pathname.
+ */
+BranchPtr Repository::find_branch_by_path(const filesystem::path& pathname,
+                                          BranchPtr default_obj)
+{
+  if (! branches_by_path.empty()) {
+    for (filesystem::path dirname(pathname);
+         ! dirname.empty();
+         dirname = dirname.parent_path()) {
+      branches_path_map::iterator i = branches_by_path.find(dirname);
+      if (i != branches_by_path.end())
+        return (*i).second;
+    }
+  }
+
+  if (default_obj) {
+    std::pair<branches_path_map::iterator, bool> result =
+      branches_by_path.insert(branches_path_value(pathname, default_obj));
+    if (! result.second) {
+      log.warn(std::string("Branch path repeated: ") + pathname.string());
+      return NULL;
+    }
+    return default_obj;
+  }
+
+  assert(false);
   return NULL;
 }
 
@@ -689,24 +719,17 @@ void Repository::delete_branch(BranchPtr branch, int related_revision)
     log.debug(std::string("Wrote tag ") + tag_name);
   }
 
-  for (branches_map::iterator b = branches.begin();
-       b != branches.end();
-       ++b) {
-    if (branch == (*b).second) {
-      (*b).second->git_ref = NULL;
-      (*b).second->commit = NULL;
-      (*b).second->next_commit = NULL;
-      break;
-    }
-  }
+  branch->git_ref     = NULL;
+  branch->commit      = NULL;
+  branch->next_commit = NULL;
 }
 
 void Repository::write_branches()
 {
   assert(commit_queue.empty());
 
-  for (branches_map::iterator i = branches.begin();
-       i != branches.end();
+  for (branches_name_map::iterator i = branches_by_name.begin();
+       i != branches_by_name.end();
        ++i) {
     if ((*i).second->commit) {
       if ((*i).second->is_tag) {

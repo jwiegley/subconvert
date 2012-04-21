@@ -113,26 +113,6 @@ Git::TreePtr ConvertRepository::get_past_tree(const SvnDump::File::Node& node)
   return NULL;
 }
 
-/**
- * Find the branch within the repository associated with the Subversion
- * pathname.
- */
-Git::BranchPtr
-ConvertRepository::find_branch(const filesystem::path& pathname)
-{
-  if (! branches.empty()) {
-    for (filesystem::path dirname(pathname);
-         ! dirname.empty();
-         dirname = dirname.parent_path()) {
-      branches_map::iterator i = branches.find(dirname);
-      if (i != branches.end())
-        return (*i).second;
-    }
-  }
-  assert(false);
-  return NULL;
-}
-
 void ConvertRepository::set_commit_info(Git::CommitPtr commit)
 {
   // Setup the author and commit comment
@@ -173,11 +153,47 @@ void ConvertRepository::set_commit_info(Git::CommitPtr commit)
   commit->set_message(buf.str());
 }
 
+void ConvertRepository::applicable_branches(const filesystem::path& pathname,
+                                            branches_mapping_t& branches)
+{
+  Git::BranchPtr branch = repository->find_branch_by_path(pathname);
+
+  if (branch) {
+    branches.push_back(std::make_pair(branch, pathname));
+
+    for (submodule_list_t::iterator i = modules_list.begin();
+         i != modules_list.end();
+         ++i) {
+      Submodule * submodule(*i);
+
+      for (Submodule::module_map_t::iterator
+             j = submodule->file_mappings.begin();
+           j != submodule->file_mappings.end();
+           ++j) {
+        if (starts_with(pathname.string(), (*j).first)) {
+          filesystem::path newpath;
+          if (pathname.string() == (*j).first) {
+            newpath = pathname;
+          } else {
+            newpath = filesystem::path((*j).second +
+                                       std::string(pathname.string(),
+                                                   (*j).first.length()));
+          }
+          branch = submodule->repository->find_branch_by_path(pathname);
+          assert(branch);
+
+          branches.push_back(std::make_pair(branch, newpath));
+        }
+      }
+    }
+  }
+}
+
 void ConvertRepository::update_object(const filesystem::path& pathname,
                                       Git::ObjectPtr          obj,
                                       Git::BranchPtr          from_branch)
 {
-  Git::BranchPtr branch        = find_branch(pathname);
+  Git::BranchPtr branch        = repository->find_branch_by_path(pathname);
   Git::CommitPtr branch_commit = branch->get_commit(from_branch);
 
   // Even though we don't use it here, this call to branch->get_commit()
@@ -271,7 +287,7 @@ bool ConvertRepository::add_file(const SvnDump::File::Node& node)
     assert(obj->is_blob());
 
     obj = obj->copy_to_name(pathname.filename().string());
-    update_object(pathname, obj, find_branch(from_path));
+    update_object(pathname, obj, repository->find_branch_by_path(from_path));
 
     return true;
   }
@@ -304,7 +320,7 @@ bool ConvertRepository::add_directory(const SvnDump::File::Node& node)
     // `obj' could be NULL here, if the directory we're copying from had
     // no files in it.
     if (obj) {
-      Git::BranchPtr from_branch(find_branch(from_path));
+      Git::BranchPtr from_branch(repository->find_branch_by_path(from_path));
 
       if (status.debug_mode()) {
         std::ostringstream buf;
@@ -333,18 +349,6 @@ bool ConvertRepository::delete_item(const SvnDump::File::Node& node)
   update_object(pathname);
 
   return true;
-}
-
-void ConvertRepository::delete_branch(Git::BranchPtr branch)
-{
-  for (branches_map::iterator b = branches.begin();
-       b != branches.end();
-       ++b) {
-    if (branch == (*b).second) {
-      (*b).second = repository->find_branch(branch->name);
-      break;
-    }
-  }
 }
 
 int ConvertRepository::prescan(const SvnDump::File::Node& node)
@@ -381,14 +385,14 @@ int ConvertRepository::prescan(const SvnDump::File::Node& node)
     }
   }
 
-  if (! branches.empty()) {
+  if (! repository->branches_by_path.empty()) {
     // Ignore pathname which only add or modify directories, but
     // do care about all entries which add or modify files, and
     // those which copy directories.
     if (node.get_action() == SvnDump::File::Node::ACTION_DELETE ||
         node.get_kind()   == SvnDump::File::Node::KIND_FILE ||
         node.has_copy_from()) {
-      if (! find_branch(node.get_path())) {
+      if (! repository->find_branch_by_path(node.get_path())) {
         std::ostringstream buf;
         buf << "Could not find branch for " << node.get_path()
             << " in r" << dump.get_rev_nr();
@@ -396,7 +400,8 @@ int ConvertRepository::prescan(const SvnDump::File::Node& node)
         ++errors;
       }
 
-      if (node.has_copy_from() && ! find_branch(node.get_copy_from_path())) {
+      if (node.has_copy_from() &&
+          ! repository->find_branch_by_path(node.get_copy_from_path())) {
         std::ostringstream buf;
         buf << "Could not find branch for " << node.get_copy_from_path()
             << " in r" << dump.get_rev_nr();
@@ -415,8 +420,7 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
   if (rev != last_rev) {
     // Commit any changes to the repository's index.  If there were no
     // Git-visible changes, this will be a no-op.
-    if (repository->write(last_rev,
-                          bind(&ConvertRepository::delete_branch, this, _1))) {
+    if (repository->write(last_rev)) {
       // Record the state of the "historical tree", the one that mirrors
       // the entire state of the Subversion filesystem.  This is
       // necessary when we encounters revisions that copy data from
@@ -470,8 +474,7 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
 
 void ConvertRepository::finish()
 {
-  repository->write(last_rev,
-                    bind(&ConvertRepository::delete_branch, this, _1));
+  repository->write(last_rev);
   repository->write_branches();
   repository->garbage_collect();
 

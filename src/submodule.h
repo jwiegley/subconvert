@@ -38,12 +38,11 @@
 struct ConvertRepository;
 
 struct Submodule;
-typedef std::vector<shared_ptr<Submodule> > submodule_list_t;
+typedef std::vector<Submodule *> submodule_list_t;
 
 struct Submodule : public noncopyable
 {
   typedef std::map<std::string, std::string> module_map_t;
-  module_map_t module_map;
 
   std::string        pathname;
   module_map_t       file_mappings;
