@@ -203,6 +203,47 @@ void ConvertRepository::update_object(const filesystem::path& pathname,
   }
 }
 
+std::string
+ConvertRepository::describe_change(SvnDump::File::Node::Kind   kind,
+                                   SvnDump::File::Node::Action action)
+{
+  std::string desc;
+
+  switch (action) {
+  case SvnDump::File::Node::ACTION_NONE:
+    desc = "NONE";
+    break;
+  case SvnDump::File::Node::ACTION_ADD:
+    desc = "ADD";
+    break;
+  case SvnDump::File::Node::ACTION_DELETE:
+    desc = "DELETE";
+    break;
+  case SvnDump::File::Node::ACTION_CHANGE:
+    desc = "CHANGE";
+    break;
+  case SvnDump::File::Node::ACTION_REPLACE:
+    desc = "REPLACE";
+    break;
+  }
+
+  desc += " ";
+
+  switch (kind) {
+  case SvnDump::File::Node::KIND_NONE:
+    desc += "NONE";
+    break;
+  case SvnDump::File::Node::KIND_FILE:
+    desc += "FILE";
+    break;
+  case SvnDump::File::Node::KIND_DIR:
+    desc += "DIR";
+    break;
+  }
+
+  return desc;
+}
+
 bool ConvertRepository::add_file(const SvnDump::File::Node& node)
 {
   filesystem::path pathname(node.get_path());
@@ -243,9 +284,6 @@ bool ConvertRepository::add_file(const SvnDump::File::Node& node)
 
     return true;
   }
-  else {
-    status.debug("No actual change detected.");
-  }
 
   return false;
 }
@@ -281,9 +319,8 @@ bool ConvertRepository::add_directory(const SvnDump::File::Node& node)
       update_object(pathname, obj, from_branch);
     }
     return true;
-  } else {
-    status.debug("No actual change detected.");
   }
+
   return false;
 }
 
@@ -400,27 +437,31 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
     last_rev = rev;
   }
 
+  bool changed = false;
+
   filesystem::path pathname(node.get_path());
   if (! pathname.empty()) {
     SvnDump::File::Node::Kind   kind   = node.get_kind();
     SvnDump::File::Node::Action action = node.get_action();
 
+
     if (kind == SvnDump::File::Node::KIND_FILE &&
         (action == SvnDump::File::Node::ACTION_ADD ||
          action == SvnDump::File::Node::ACTION_CHANGE)) {
-      add_file(node);
+      changed = add_file(node);
     }
     else if (action == SvnDump::File::Node::ACTION_DELETE) {
-      delete_item(node);
+      changed = delete_item(node);
     }
     else if (node.has_copy_from() &&
              kind   == SvnDump::File::Node::KIND_DIR   &&
              action == SvnDump::File::Node::ACTION_ADD) {
-      add_directory(node);
+      changed = add_directory(node);
     }
-    else {
-      status.debug("Subversion change ignored.");
-    }
+
+    if (! changed)
+      status.debug(std::string("Change ignored: ") +
+                   describe_change(kind, action));
   }
 }
 

@@ -89,6 +89,9 @@ struct ConvertRepository
                      Git::ObjectPtr obj = NULL,
                      Git::BranchPtr from_branch = NULL);
 
+  std::string describe_change(SvnDump::File::Node::Kind   kind,
+                              SvnDump::File::Node::Action action);
+
   bool add_file(const SvnDump::File::Node& node);
   bool add_directory(const SvnDump::File::Node& node);
   bool delete_item(const SvnDump::File::Node& node);
