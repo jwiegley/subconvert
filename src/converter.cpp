@@ -429,6 +429,9 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
 #ifdef ASSERTS
       assert(result.second);
 #endif
+
+      if (rev % 1000 == 0)
+        repository->garbage_collect();
     }
 
     free_past_trees();
@@ -470,6 +473,7 @@ void ConvertRepository::finish()
   repository->write(last_rev,
                     bind(&ConvertRepository::delete_branch, this, _1));
   repository->write_branches();
+  repository->garbage_collect();
 
   if (history_branch->commit) {
     repository->create_tag(history_branch->commit, history_branch->name);

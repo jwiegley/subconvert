@@ -731,6 +731,15 @@ void Repository::write_branches()
   }
 }
 
+void Repository::garbage_collect()
+{
+  std::system("git config gc.autopacklimit 0");
+  std::system("git config loose.compression 0");
+  std::system("git config pack.compression 1");
+
+  std::system("git gc");
+}
+
 void Repository::create_tag(CommitPtr commit, const std::string& name)
 {
   git_tag * tag;
