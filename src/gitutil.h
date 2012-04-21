@@ -89,15 +89,16 @@ namespace Git
     }
 
   public:
-    std::string name;
-    int         attributes;
+    std::string  name;
+    unsigned int attributes;
 
     git_tree_entry * tree_entry;
 
     Object(RepositoryPtr _repository, git_object * _git_obj,
-           const std::string& _name = "", int _attributes = 0)
+           const std::string& _name = "", unsigned int _attributes = 0)
       : repository(_repository), git_obj(_git_obj), refc(0),
         name(_name), attributes(_attributes), tree_entry(NULL) {}
+
     virtual ~Object() {
       assert(refc == 0);
     }
@@ -166,7 +167,7 @@ namespace Git
 
   public:
     Blob(RepositoryPtr repository, git_blob * blob, const git_oid * transfer,
-         const std::string& name, int attributes = 0100644)
+         const std::string& name, unsigned int attributes = 0100644)
       : Object(repository, reinterpret_cast<git_object *>(blob),
                name, attributes) {
       if (transfer) {
@@ -248,7 +249,7 @@ namespace Git
 
   public:
     Tree(RepositoryPtr repository, git_tree * tree,
-         const std::string& name, int attributes = 0040000)
+         const std::string& name, unsigned int attributes = 0040000)
       : Object(repository, reinterpret_cast<git_object *>(tree),
                name, attributes), written(false), modified(false) {}
 
@@ -318,7 +319,7 @@ namespace Git
     bool      new_branch;
 
     Commit(RepositoryPtr repo, git_commit * commit, CommitPtr _parent = NULL,
-           const std::string& name = "", int attributes = 0040000);
+           const std::string& name = "", unsigned int attributes = 0040000);
 
     virtual void allocate() {
       // This gets allocated by Repository::create_commit, not here.
@@ -501,13 +502,13 @@ namespace Git
 
     BlobPtr   create_blob(const std::string& name,
                           const char * data, std::size_t len,
-                          int attributes = 0100644);
+                          unsigned int attributes = 0100644);
 
     TreePtr   create_tree(const std::string& name = "",
-                          int attributes = 040000);
+                          unsigned int attributes = 040000);
 #if defined(READ_EXISTING_GIT_REPOSITORY)
     TreePtr   read_tree(git_tree * git_tree, const std::string& name = "",
-                        int attributes = 0040000);
+                        unsigned int attributes = 0040000);
 #endif
 
     CommitPtr create_commit(CommitPtr parent = NULL);

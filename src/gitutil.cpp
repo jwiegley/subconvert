@@ -507,7 +507,7 @@ void Branch::update(CommitPtr ptr)
 }
 
 BlobPtr Repository::create_blob(const std::string& name, const char * data,
-                                std::size_t len, int attributes)
+                                std::size_t len, unsigned int attributes)
 {
   git_blob * git_blob;
   git_check(git_blob_new(&git_blob, repo));
@@ -518,7 +518,8 @@ BlobPtr Repository::create_blob(const std::string& name, const char * data,
   return blob;
 }
 
-TreePtr Repository::create_tree(const std::string& name, int attributes)
+TreePtr Repository::create_tree(const std::string& name,
+                                unsigned int attributes)
 {
   git_tree * git_tree;
   git_check(git_tree_new(&git_tree, repo));
@@ -531,7 +532,7 @@ TreePtr Repository::create_tree(const std::string& name, int attributes)
 #if defined(READ_EXISTING_GIT_REPOSITORY)
 
 TreePtr Repository::read_tree(git_tree * tree_obj, const std::string& name,
-                              int attributes)
+                              unsigned int attributes)
 {
   TreePtr tree(new Tree(this, tree_obj, name, attributes));
 
@@ -543,7 +544,7 @@ TreePtr Repository::read_tree(git_tree * tree_obj, const std::string& name,
       throw std::logic_error("Could not read Git tree entry");
 
     std::string entry_name(git_tree_entry_name(entry));
-    int entry_attributes(static_cast<int>(git_tree_entry_attributes(entry)));
+    unsigned int entry_attributes(git_tree_entry_attributes(entry));
 
     git_object * git_obj;
     git_check(git_tree_entry_2object(&git_obj, entry));
