@@ -71,17 +71,17 @@ namespace SvnDump
     private:
 #define STATIC_BUFLEN 65536
 
-      int                                      curr_txn;
-      filesystem::path                  pathname;
-      Kind                                     kind;
-      Action                                   action;
-      char *                                   text;
-      bool                                     text_allocated;
-      char                                     static_buffer[STATIC_BUFLEN];
-      int                                      text_len;
-      optional<std::string>             md5_checksum;
-      optional<std::string>             sha1_checksum;
-      optional<int>                     copy_from_rev;
+      int                        curr_txn;
+      filesystem::path           pathname;
+      Kind                       kind;
+      Action                     action;
+      char *                     text;
+      bool                       text_allocated;
+      char                       static_buffer[STATIC_BUFLEN];
+      int                        text_len;
+      optional<std::string>      md5_checksum;
+      optional<std::string>      sha1_checksum;
+      optional<int>              copy_from_rev;
       optional<filesystem::path> copy_from_path;
 
       friend class File;
