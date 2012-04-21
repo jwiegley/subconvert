@@ -56,7 +56,6 @@ bool File::read_next(const bool ignore_text, const bool verify)
 
   int  prop_content_length = -1;
   int  text_content_length = -1;
-  int  content_length      = -1;
   bool saw_node_path       = false;
 
   while (handle->good() && ! handle->eof()) {
@@ -64,7 +63,6 @@ bool File::read_next(const bool ignore_text, const bool verify)
     case STATE_NEXT:
       prop_content_length = -1;
       text_content_length = -1;
-      content_length      = -1;
       saw_node_path       = false;
 
       curr_node.reset();
@@ -83,8 +81,6 @@ bool File::read_next(const bool ignore_text, const bool verify)
           (linebuf, 0, static_cast<std::string::size_type>(p - linebuf));
         switch (property[0]) {
         case 'C':
-          if (property == "Content-length")
-            content_length = std::atoi(p + 2);
           break;
 
         case 'N':
