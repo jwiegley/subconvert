@@ -43,10 +43,10 @@
  *
  *   Git::DumbLogger log;
  *   Git::Repository repo("/path/to/repository", log);
- *   
+ *
  *   struct tm then;
  *   strptime("2005-04-07T22:13:13", "%Y-%m-%dT%H:%M:%S", &then);
- *   
+ *
  *   Git::CommitPtr commit = repo.create_commit();
  *   commit->update("foo/bar/baz.c",
  *                  repo.create_blob("baz.c", "#include <stdio.h>\n", 19));
@@ -56,7 +56,7 @@
  *                      std::mktime(&then));
  *   commit->set_message("This is a sample commit.\n");
  *   commit->write();
- *   
+ *
  *   // Update the 'master' branch to refer to this commit
  *   repo.master_branch->commit = commit;
  *   repo.master_branch->update();

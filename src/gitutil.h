@@ -502,14 +502,14 @@ namespace Git
     BlobPtr   create_blob(const std::string& name,
                           const char * data, std::size_t len,
                           int attributes = 0100644);
-              
+
     TreePtr   create_tree(const std::string& name = "",
                           int attributes = 040000);
 #if defined(READ_EXISTING_GIT_REPOSITORY)
     TreePtr   read_tree(git_tree * git_tree, const std::string& name = "",
                         int attributes = 0040000);
 #endif
-              
+
     CommitPtr create_commit(CommitPtr parent = NULL);
 #if defined(READ_EXISTING_GIT_REPOSITORY)
     CommitPtr read_commit(const git_oid * oid);
@@ -518,7 +518,7 @@ namespace Git
     BranchPtr find_branch(const std::string& name, BranchPtr default_obj = NULL);
     void      delete_branch(BranchPtr branch, int related_revision);
     void      write_branches();
-              
+
     bool      write(int related_revision,
                     function<void(BranchPtr)> on_delete_branch);
     void      garbage_collect();
