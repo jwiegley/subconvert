@@ -289,8 +289,6 @@ void Tree::write()
       git_check(git_tree_add_entry_unsorted(&obj->tree_entry, *this, *obj,
                                             obj->name.c_str(),
                                             obj->attributes));
-      if (obj->is_blob())
-        obj->deallocate();
     }
 
     assert(check_size(*this));
