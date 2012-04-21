@@ -103,14 +103,13 @@ namespace Git
       assert(refc == 0);
     }
 
-    virtual void allocate() = 0;
     virtual void deallocate() {
       if (git_obj != NULL) {
         // Only free the object if it's been written, because otherwise
         // libgit2 fails to remove unwritten objects properly from its
         // hash->object table, and will then try later to free it again.
-        if (git_object_id(git_obj))
-          git_object_free(git_obj);
+        git_object_free(git_obj);
+
         git_obj = NULL;
       }
     }
@@ -141,14 +140,12 @@ namespace Git
       return false;
     }
     virtual bool is_written() const {
-      return git_object_id(git_obj);
+      return git_obj != NULL;
     }
 
     virtual ObjectPtr copy_to_name(const std::string& to_name) = 0;
 
-    virtual void write() {
-      git_check(git_object_write(*this));
-    }
+    virtual void write() {}
 
     friend inline void intrusive_ptr_add_ref(Object * obj) {
       obj->acquire();
@@ -173,13 +170,8 @@ namespace Git
       if (transfer) {
         cached_oid = transfer;
       } else {
-        write();
         cached_oid = Object::get_oid();
       }
-    }
-
-    virtual void allocate() {
-      // This gets allocated by Repository::create_blob, not here.
     }
 
     operator git_blob *() const {
@@ -211,6 +203,8 @@ namespace Git
   class Tree : public Object
   {
     friend class Repository;
+
+    git_treebuilder * builder;
 
     friend bool check_size(const Tree& tree);
 
@@ -251,11 +245,18 @@ namespace Git
     Tree(RepositoryPtr repository, git_tree * tree,
          const std::string& name, unsigned int attributes = 0040000)
       : Object(repository, reinterpret_cast<git_object *>(tree),
-               name, attributes), written(false), modified(false) {}
+               name, attributes),
+        builder(NULL), written(false), modified(false) {}
 
-    Tree(const Tree& other);
+    Tree(const Tree& other)
+      : Object(other.repository, NULL, other.name, other.attributes),
+        builder(NULL), entries(other.entries), written(false),
+        modified(false) {}
 
-    virtual void allocate();
+    virtual ~Tree() {
+      if (builder != NULL)
+        git_treebuilder_free(builder);
+    }
 
     operator git_tree *() const {
       return reinterpret_cast<git_tree *>(git_obj);
@@ -313,16 +314,20 @@ namespace Git
     friend class Repository;
 
   public:
-    CommitPtr parent;
-    TreePtr   tree;
-    BranchPtr branch;
-    bool      new_branch;
+    CommitPtr       parent;
+    TreePtr         tree;
+    BranchPtr       branch;
+    bool            new_branch;
+    std::string     message_str;
+    git_signature * signature;
 
     Commit(RepositoryPtr repo, git_commit * commit, CommitPtr _parent = NULL,
-           const std::string& name = "", unsigned int attributes = 0040000);
+           const std::string& name = "", unsigned int attributes = 0040000)
+      : Object(repo, reinterpret_cast<git_object *>(commit),
+               name, attributes), parent(_parent), new_branch(false) {}
 
-    virtual void allocate() {
-      // This gets allocated by Repository::create_commit, not here.
+    virtual ~Commit() {
+      git_signature_free(signature);
     }
 
     operator git_commit *() const {
@@ -361,23 +366,18 @@ namespace Git
 #endif
 
     std::string get_message() const {
-      return git_commit_message(*this);
+      return message_str;
     }
 
     void set_message(const std::string& message) {
-      git_commit_set_message(*this, message.c_str());
+      message_str = message;
     }
 
     void set_author(const std::string& name, const std::string& email,
                     time_t time)
     {
-      git_signature * signature =
-        git_signature_new(name.c_str(), email.c_str(), time, 0);
-      if (! signature)
-        throw std::logic_error("Could not create signature object");
-
-      git_commit_set_author(*this, signature);
-      git_commit_set_committer(*this, signature);
+      git_check(git_signature_new(&signature, name.c_str(), email.c_str(),
+                                  time, 0));
     }
 
     ObjectPtr lookup(const filesystem::path& pathname) {
@@ -395,8 +395,12 @@ namespace Git
     }
   };
 
-  class Branch
+  class Branch : public noncopyable
   {
+    friend class Repository;
+
+    git_reference * git_ref;
+
   public:
     RepositoryPtr    repository;
     std::string      name;
@@ -407,14 +411,13 @@ namespace Git
 
     Branch(RepositoryPtr repo, const std::string& _name = "master",
            bool _is_tag = false)
-      : repository(repo), name(_name), is_tag(_is_tag), refc(0) {}
+      : git_ref(NULL), repository(repo), name(_name), is_tag(_is_tag),
+        refc(0) {}
 
-    Branch(const Branch& other)
-      : repository(other.repository), name(other.name), prefix(other.prefix),
-        is_tag(other.is_tag), refc(0) {}
-
-    ~Branch() throw() {
+    ~Branch() {
       assert(refc == 0);
+      if (git_ref != NULL)
+        git_reference_free(git_ref);
     }
 
     mutable int refc;
@@ -525,10 +528,6 @@ namespace Git
     void      garbage_collect();
 
     void      create_tag(CommitPtr commit, const std::string& name);
-    void      create_ref(git_object * obj, const std::string& name,
-                         bool is_tag = false);
-    void      create_ref(ObjectPtr obj, const std::string& name,
-                         bool is_tag = false);
     void      create_file(const filesystem::path& pathname,
                           const std::string& content = "");
 
