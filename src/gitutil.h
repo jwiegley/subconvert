@@ -72,7 +72,7 @@ namespace Git
 
   protected:
     RepositoryPtr repository;
-    git_object *  git_obj;
+    git_oid       oid;
 
     mutable int refc;
 
@@ -82,47 +82,32 @@ namespace Git
     }
     void release() const {
       assert(refc > 0);
-      if (--refc == 0) {
-        const_cast<Object *>(this)->deallocate();
+      if (--refc == 0)
         checked_delete(this);
-      }
     }
 
   public:
     std::string  name;
     unsigned int attributes;
+    bool         written;
 
-    git_tree_entry * tree_entry;
-
-    Object(RepositoryPtr _repository, git_object * _git_obj,
+    Object(RepositoryPtr _repository, git_oid * _oid,
            const std::string& _name = "", unsigned int _attributes = 0)
-      : repository(_repository), git_obj(_git_obj), refc(0),
-        name(_name), attributes(_attributes), tree_entry(NULL) {}
+      : repository(_repository), refc(0), name(_name),
+        attributes(_attributes), written(_oid != NULL) {
+      if (_oid != NULL)
+        oid = *_oid;
+    }
 
     virtual ~Object() {
       assert(refc == 0);
     }
 
-    virtual void deallocate() {
-      if (git_obj != NULL) {
-        // Only free the object if it's been written, because otherwise
-        // libgit2 fails to remove unwritten objects properly from its
-        // hash->object table, and will then try later to free it again.
-        git_object_free(git_obj);
-
-        git_obj = NULL;
-      }
-    }
-
-    operator git_object *() {
-      return git_obj;
-    }
-
     virtual operator const git_oid *() const {
-      return git_object_id(git_obj);
+      return &oid;
     }
     virtual const git_oid * get_oid() const {
-      return git_object_id(git_obj);
+      return &oid;
     }
 
     std::string sha1() const {
@@ -140,7 +125,7 @@ namespace Git
       return false;
     }
     virtual bool is_written() const {
-      return git_obj != NULL;
+      return written;
     }
 
     virtual ObjectPtr copy_to_name(const std::string& to_name) = 0;
@@ -159,42 +144,16 @@ namespace Git
 
   class Blob : public Object
   {
-  protected:
-    const git_oid * cached_oid;
-
   public:
-    Blob(RepositoryPtr repository, git_blob * blob, const git_oid * transfer,
-         const std::string& name, unsigned int attributes = 0100644)
-      : Object(repository, reinterpret_cast<git_object *>(blob),
-               name, attributes) {
-      if (transfer) {
-        cached_oid = transfer;
-      } else {
-        cached_oid = Object::get_oid();
-      }
-    }
-
-    operator git_blob *() const {
-      return reinterpret_cast<git_blob *>(git_obj);
-    }
-
-    virtual operator const git_oid *() const {
-      return cached_oid;
-    }
-    virtual const git_oid * get_oid() const {
-      return cached_oid;
-    }
-
-    virtual bool is_written() const {
-      return true;
-    }
+    Blob(RepositoryPtr repository, git_oid * _oid, const std::string& name,
+         unsigned int attributes = 0100644)
+      : Object(repository, _oid, name, attributes) {}
 
     virtual ObjectPtr copy_to_name(const std::string& to_name) {
       if (name == to_name)
         return this;
       else
-        return new Blob(repository, reinterpret_cast<git_blob *>(git_obj),
-                        cached_oid, to_name, attributes);
+        return new Blob(repository, &oid, to_name, attributes);
     }
   };
 
@@ -213,7 +172,6 @@ namespace Git
     typedef std::pair<std::string, ObjectPtr> entries_pair;
 
     entries_map entries;
-    bool        written;
     bool        modified;
 
     ObjectPtr do_lookup(filesystem::path::iterator segment,
@@ -242,24 +200,18 @@ namespace Git
                    filesystem::path::iterator end);
 
   public:
-    Tree(RepositoryPtr repository, git_tree * tree,
+    Tree(RepositoryPtr repository, git_oid * _oid,
          const std::string& name, unsigned int attributes = 0040000)
-      : Object(repository, reinterpret_cast<git_object *>(tree),
-               name, attributes),
-        builder(NULL), written(false), modified(false) {}
+      : Object(repository, _oid, name, attributes), builder(NULL),
+        modified(false) {}
 
     Tree(const Tree& other)
       : Object(other.repository, NULL, other.name, other.attributes),
-        builder(NULL), entries(other.entries), written(false),
-        modified(false) {}
+        builder(NULL), entries(other.entries), modified(false) {}
 
     virtual ~Tree() {
       if (builder != NULL)
         git_treebuilder_free(builder);
-    }
-
-    operator git_tree *() const {
-      return reinterpret_cast<git_tree *>(git_obj);
     }
 
     virtual bool is_blob() const {
@@ -273,7 +225,7 @@ namespace Git
       return modified;
     }
     virtual bool is_written() const {
-      return written && ! modified;
+      return Object::is_written() && ! is_modified();
     }
 
     virtual TreePtr copy() {
@@ -321,17 +273,14 @@ namespace Git
     std::string     message_str;
     git_signature * signature;
 
-    Commit(RepositoryPtr repo, git_commit * commit, CommitPtr _parent = NULL,
+    Commit(RepositoryPtr repo, git_oid * _oid, CommitPtr _parent = NULL,
            const std::string& name = "", unsigned int attributes = 0040000)
-      : Object(repo, reinterpret_cast<git_object *>(commit),
-               name, attributes), parent(_parent), new_branch(false) {}
+      : Object(repo, _oid, name, attributes), parent(_parent),
+        new_branch(false), signature(NULL) {}
 
     virtual ~Commit() {
-      git_signature_free(signature);
-    }
-
-    operator git_commit *() const {
-      return reinterpret_cast<git_commit *>(git_obj);
+      if (signature != NULL)
+        git_signature_free(signature);
     }
 
     virtual bool is_blob() const {
@@ -452,6 +401,8 @@ namespace Git
     virtual void warn(const std::string& message) const = 0;
     virtual void error(const std::string& message) const = 0;
 
+    virtual void newline() const = 0;
+
     virtual ~Logger() throw() {}
   };
 
@@ -490,7 +441,7 @@ namespace Git
 
     Repository(const filesystem::path& pathname, Logger& _log,
                function<void(CommitPtr)> _set_commit_info = no_commit_info)
-      : log(_log), set_commit_info(_set_commit_info)
+      : repo(NULL), log(_log), set_commit_info(_set_commit_info)
     {
       if (git_repository_open(&repo, pathname.string().c_str()) != 0)
         if (git_repository_open(&repo,
@@ -500,7 +451,8 @@ namespace Git
                                  (pathname / ".git").string());
     }
     ~Repository() {
-      git_repository_free(repo);
+      if (repo != NULL)
+        git_repository_free(repo);
     }
 
     operator git_repository *() const {
