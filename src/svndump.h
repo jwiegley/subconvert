@@ -41,17 +41,17 @@ namespace SvnDump
 {
   class File : public noncopyable
   {
-    int curr_rev;
-    int last_rev;
+    int         curr_rev;
+    int         last_rev;
+    std::string rev_author;
+    std::time_t rev_date;
 
-    std::string                  rev_author;
-    std::time_t                  rev_date;
     optional<std::string> rev_log;
 
     filesystem::ifstream * handle;
 
   public:
-    class Node : public noncopyable
+    class Node
     {
     public:
       enum Kind {
@@ -69,16 +69,17 @@ namespace SvnDump
       };
 
     private:
-#define STATIC_BUFLEN 65536
+#define STATIC_BUFLEN 4096
 
-      int                        curr_txn;
-      filesystem::path           pathname;
-      Kind                       kind;
-      Action                     action;
-      char *                     text;
-      bool                       text_allocated;
-      char                       static_buffer[STATIC_BUFLEN];
-      int                        text_len;
+      int              curr_txn;
+      filesystem::path pathname;
+      Kind             kind;
+      Action           action;
+      char *           text;
+      bool             text_allocated;
+      char             static_buffer[STATIC_BUFLEN];
+      std::size_t      text_len;
+
       optional<std::string>      md5_checksum;
       optional<std::string>      sha1_checksum;
       optional<int>              copy_from_rev;
@@ -86,9 +87,100 @@ namespace SvnDump
 
       friend class File;
 
+      std::string           rev_author;
+      std::time_t           rev_date;
+      optional<std::string> rev_log;
+      int                   curr_rev;
+
     public:
-      Node() : curr_txn(-1), text(NULL), text_allocated(false) { reset(); }
-      ~Node() { reset(); }
+      int get_rev_nr() const {
+        return curr_rev;
+      }
+      std::string get_rev_author() const {
+        return rev_author;
+      }
+      std::time_t get_rev_date() const {
+        return rev_date;
+      }
+      optional<std::string> get_rev_log() const {
+        return rev_log;
+      }
+
+      Node() : curr_txn(-1), text(NULL), text_allocated(false),
+               text_len(0), curr_rev(-1) {}
+
+      Node(const Node& other) {
+        *this = other;
+      }
+      Node(Node&& other) {
+        *this = boost::move(other);
+      }
+
+      ~Node() {
+        if (text_allocated) {
+          assert(text);
+          delete[] text;
+        }
+      }
+
+      Node& operator=(const Node& other) {
+        curr_txn       = other.curr_txn;
+        pathname       = other.pathname;
+        kind           = other.kind;
+        action         = other.action;
+        text_allocated = other.text_allocated;
+        text_len       = other.text_len;
+        md5_checksum   = other.md5_checksum;
+        sha1_checksum  = other.sha1_checksum;
+        copy_from_rev  = other.copy_from_rev;
+        copy_from_path = other.copy_from_path;
+        rev_author     = other.rev_author;
+        rev_date       = other.rev_date;
+        rev_log        = other.rev_log;
+        curr_rev       = other.curr_rev;
+
+        if (! text_allocated) {
+          assert(text_len <= STATIC_BUFLEN);
+          std::memcpy(static_buffer, other.static_buffer, text_len);
+        } else {
+          assert(text_len > 0);
+          text = new char[text_len];
+          std::memcpy(text, other.text, text_len);
+        }
+
+        return *this;
+      }
+
+      Node& operator=(Node&& other) {
+        curr_txn       = other.curr_txn;
+        pathname       = other.pathname;
+        kind           = other.kind;
+        action         = other.action;
+        text_allocated = other.text_allocated;
+        text_len       = other.text_len;
+        md5_checksum   = other.md5_checksum;
+        sha1_checksum  = other.sha1_checksum;
+        copy_from_rev  = other.copy_from_rev;
+        copy_from_path = other.copy_from_path;
+        rev_author     = other.rev_author;
+        rev_date       = other.rev_date;
+        rev_log        = other.rev_log;
+        curr_rev       = other.curr_rev;
+
+        if (! text_allocated) {
+          assert(text_len <= STATIC_BUFLEN);
+          std::memcpy(static_buffer, other.static_buffer, text_len);
+        } else {
+          assert(text_len > 0);
+          text = other.text;
+
+          other.text           = NULL;
+          other.text_allocated = false;
+          other.text_len       = 0;
+        }
+
+        return *this;
+      }
 
       void reset() {
         kind     = KIND_NONE;
@@ -99,13 +191,15 @@ namespace SvnDump
         if (text_allocated) {
           delete[] text;
           text_allocated = false;
+          text           = NULL;
         }
-        text = NULL;
+        text_len = 0;
 
         md5_checksum   = none;
         sha1_checksum  = none;
         copy_from_rev  = none;
         copy_from_path = none;
+        rev_log        = none;
       }
 
       int get_txn_nr() const {
@@ -136,7 +230,7 @@ namespace SvnDump
         return text;
       }
       std::size_t get_text_length() const {
-        return static_cast<std::size_t>(text_len);
+        return text_len;
       }
       bool has_md5() const {
         return md5_checksum;
@@ -194,7 +288,7 @@ namespace SvnDump
     int get_last_rev_nr() const {
       return last_rev;
     }
-    const Node& get_curr_node() const {
+    Node& get_curr_node() {
       return curr_node;
     }
     std::string get_rev_author() const {

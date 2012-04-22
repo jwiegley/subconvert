@@ -52,6 +52,31 @@ if [ test x$pch = xtrue ]; then
 fi
 AM_CONDITIONAL(USE_PCH, test x$pch = xtrue)
 
+AC_ARG_ENABLE(threads,
+  [  --enable-threads            Use GCC 4.x pre-compiled headers],
+  [case "${enableval}" in
+    yes) threads=true ;;
+    no)  threads=false ;;
+    *) AC_MSG_ERROR(bad value ${enableval} for --enable-threads) ;;
+  esac],[threads=false])
+
+if [ test x$threads = xtrue ]; then
+  AC_DEFINE([USE_THREADS], [1], [Whether pre-compiled headers are being used])
+
+  AC_ARG_WITH(boost-suffix,
+    [  --with-boost-suffix=X   Append X to the Boost library names],
+    [BOOST_SUFFIX="${withval}"],
+    [BOOST_SUFFIX="-mt"])
+else
+  AC_ARG_WITH(boost-suffix,
+    [  --with-boost-suffix=X   Append X to the Boost library names],
+    [BOOST_SUFFIX="${withval}"],
+    [BOOST_SUFFIX=""])
+fi
+AM_CONDITIONAL(USE_THREADS, test x$threads = xtrue)
+
+AC_SUBST([BOOST_SUFFIX], $BOOST_SUFFIX)
+
 AC_ARG_ENABLE(doxygen,
   [  --enable-doxygen        Turns on generation of code documentation],
   [case "${enableval}" in
@@ -61,13 +86,6 @@ AC_ARG_ENABLE(doxygen,
   esac],[doxygen=false])
 
 AM_CONDITIONAL(USE_DOXYGEN, test x$doxygen = xtrue)
-
-AC_ARG_WITH(boost-suffix,
-  [  --with-boost-suffix=X   Append X to the Boost library names],
-  [BOOST_SUFFIX="${withval}"],
-  [BOOST_SUFFIX=""])
-
-AC_SUBST([BOOST_SUFFIX], $BOOST_SUFFIX)
 
 # check for boost_filesystem
 AC_CACHE_CHECK(
@@ -89,6 +107,31 @@ if [test x$boost_filesystem_cpplib_avail_cv_ = xtrue ]; then
   LIBS="-lboost_filesystem$BOOST_SUFFIX -lboost_system$BOOST_SUFFIX $LIBS"
 else
   AC_MSG_FAILURE("Could not find boost_filesystem library (set CPPFLAGS and LDFLAGS?)")
+fi
+
+# check for boost_thread
+if [ test x$threads = xtrue ]; then
+  AC_CACHE_CHECK(
+    [if boost_thread is available],
+    [boost_thread_cpplib_avail_cv_],
+    [boost_thread_save_libs=$LIBS
+     LIBS="-lboost_thread$BOOST_SUFFIX $LIBS"
+     AC_LANG_PUSH(C++)
+     AC_LINK_IFELSE(
+       [AC_LANG_PROGRAM(
+          [[#include <boost/thread.hpp>
+            void f(void) {}]],
+          [[boost::thread this_thread(f);]])],
+       [boost_thread_cpplib_avail_cv_=true],
+       [boost_thread_cpplib_avail_cv_=false])
+     AC_LANG_POP
+     LIBS=$boost_thread_save_libs])
+  
+  if [test x$boost_thread_cpplib_avail_cv_ = xtrue ]; then
+    LIBS="-lboost_thread$BOOST_SUFFIX $LIBS"
+  else
+    AC_MSG_FAILURE("Could not find boost_thread library (set CPPFLAGS and LDFLAGS?)")
+  fi
 fi
 
 # Checks for header files.

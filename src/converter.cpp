@@ -93,10 +93,10 @@ void ConvertRepository::free_past_trees()
   }
 }
 
-Git::TreePtr ConvertRepository::get_past_tree(const SvnDump::File::Node& node)
+Git::TreePtr ConvertRepository::get_past_tree()
 {
   rev_trees_map::const_iterator i =
-    rev_trees.upper_bound(node.get_copy_from_rev());
+    rev_trees.upper_bound(node->get_copy_from_rev());
   if (i == rev_trees.end()) {
     if (! rev_trees.empty())
       return (*rev_trees.rbegin()).second;
@@ -106,8 +106,8 @@ Git::TreePtr ConvertRepository::get_past_tree(const SvnDump::File::Node& node)
   }
 
   std::ostringstream buf;
-  buf << "Could not find tree for " << node.get_copy_from_path()
-      << ", r" << node.get_copy_from_rev();
+  buf << "Could not find tree for " << node->get_copy_from_path()
+      << ", r" << node->get_copy_from_rev();
   status.error(buf.str());
 
   return NULL;
@@ -116,15 +116,15 @@ Git::TreePtr ConvertRepository::get_past_tree(const SvnDump::File::Node& node)
 void ConvertRepository::set_commit_info(Git::CommitPtr commit)
 {
   // Setup the author and commit comment
-  std::string author_id(dump.get_rev_author());
+  std::string author_id(node->get_rev_author());
   Authors::authors_map::iterator author = authors.authors.find(author_id);
   if (author != authors.authors.end())
     commit->set_author((*author).second.name, (*author).second.email,
-                       dump.get_rev_date());
+                       node->get_rev_date());
   else
-    commit->set_author(author_id, "", dump.get_rev_date());
+    commit->set_author(author_id, "", node->get_rev_date());
 
-  optional<std::string> log(dump.get_rev_log());
+  optional<std::string> log(node->get_rev_log());
   std::string::size_type beg = 0;
   std::string::size_type len = 0;
   if (log) {
@@ -260,24 +260,24 @@ ConvertRepository::describe_change(SvnDump::File::Node::Kind   kind,
   return desc;
 }
 
-bool ConvertRepository::add_file(const SvnDump::File::Node& node)
+bool ConvertRepository::add_file()
 {
-  filesystem::path pathname(node.get_path());
+  filesystem::path pathname(node->get_path());
 
   status.debug(std::string("file.") +
-               (node.get_action() == SvnDump::File::Node::ACTION_ADD ?
+               (node->get_action() == SvnDump::File::Node::ACTION_ADD ?
                 "add" : "change") + ": " + pathname.string());
 
   Git::ObjectPtr obj;
-  if (node.has_copy_from()) {
-    filesystem::path from_path(node.get_copy_from_path());
-    Git::TreePtr     past_tree(get_past_tree(node));
+  if (node->has_copy_from()) {
+    filesystem::path from_path(node->get_copy_from_path());
+    Git::TreePtr     past_tree(get_past_tree());
 
     obj = past_tree->lookup(from_path);
     if (! obj) {
       std::ostringstream buf;
       buf << "Could not find " << from_path << " in tree r"
-          << node.get_copy_from_rev() << ":";
+          << node->get_copy_from_rev() << ":";
       status.warn(buf.str());
 
       past_tree->dump_tree(std::cerr);
@@ -291,11 +291,11 @@ bool ConvertRepository::add_file(const SvnDump::File::Node& node)
 
     return true;
   }
-  else if (! (node.get_action() == SvnDump::File::Node::ACTION_CHANGE &&
-              ! node.has_text())) {
+  else if (! (node->get_action() == SvnDump::File::Node::ACTION_CHANGE &&
+              ! node->has_text())) {
     obj = repository->create_blob(pathname.filename().string(),
-                                 node.has_text() ? node.get_text() : "",
-                                 node.has_text() ? node.get_text_length() : 0);
+                                 node->has_text() ? node->get_text() : "",
+                                 node->has_text() ? node->get_text_length() : 0);
     update_object(pathname, obj);
 
     return true;
@@ -304,17 +304,17 @@ bool ConvertRepository::add_file(const SvnDump::File::Node& node)
   return false;
 }
 
-bool ConvertRepository::add_directory(const SvnDump::File::Node& node)
+bool ConvertRepository::add_directory()
 {
-  filesystem::path pathname(node.get_path());
+  filesystem::path pathname(node->get_path());
 
   status.debug(std::string("dir.add: ") +
-               node.get_copy_from_path().string() + " -> " +
+               node->get_copy_from_path().string() + " -> " +
                pathname.string());
 
-  if (node.has_copy_from()) {
-    filesystem::path from_path(node.get_copy_from_path());
-    Git::TreePtr     past_tree(get_past_tree(node));
+  if (node->has_copy_from()) {
+    filesystem::path from_path(node->get_copy_from_path());
+    Git::TreePtr     past_tree(get_past_tree());
     Git::ObjectPtr   obj(past_tree->lookup(from_path));
 
     // `obj' could be NULL here, if the directory we're copying from had
@@ -324,7 +324,7 @@ bool ConvertRepository::add_directory(const SvnDump::File::Node& node)
 
       if (status.debug_mode()) {
         std::ostringstream buf;
-        buf << "Starting branch from r" << node.get_copy_from_rev()
+        buf << "Starting branch from r" << node->get_copy_from_rev()
             << " in " << from_branch->name << " (prefix \""
             << from_branch->prefix.string() << "\")";
         status.debug(buf.str());
@@ -340,9 +340,9 @@ bool ConvertRepository::add_directory(const SvnDump::File::Node& node)
   return false;
 }
 
-bool ConvertRepository::delete_item(const SvnDump::File::Node& node)
+bool ConvertRepository::delete_item()
 {
-  filesystem::path pathname(node.get_path());
+  filesystem::path pathname(node->get_path());
 
   status.debug(std::string("entry.delete: ") + pathname.string());
 
@@ -351,14 +351,16 @@ bool ConvertRepository::delete_item(const SvnDump::File::Node& node)
   return true;
 }
 
-int ConvertRepository::prescan(const SvnDump::File::Node& node)
+int ConvertRepository::prescan(SvnDump::File::Node& _node)
 {
+  node = &_node;
+
   int errors = 0;
 
-  status.update(dump.get_rev_nr());
+  status.update(node->get_rev_nr());
 
   if (! authors.authors.empty()) {
-    std::string author_id(dump.get_rev_author());
+    std::string author_id(node->get_rev_author());
     Authors::authors_map::iterator author =
       authors.authors.find(author_id);
     if (author == authors.authors.end()) {
@@ -369,19 +371,19 @@ int ConvertRepository::prescan(const SvnDump::File::Node& node)
     }
   }
 
-  if (node.has_copy_from()) {
+  if (node->has_copy_from()) {
     if (status.debug_mode()) {
       std::ostringstream buf;
-      buf << "Copy from: " << dump.get_rev_nr()
-          << " <- " << node.get_copy_from_rev();
+      buf << "Copy from: " << node->get_rev_nr()
+          << " <- " << node->get_copy_from_rev();
       status.debug(buf.str());
     }
 
     if (copy_from.empty() ||
-        ! (copy_from.back().first == dump.get_rev_nr() &&
-           copy_from.back().second == node.get_copy_from_rev())) {
-      copy_from.push_back(copy_from_value(dump.get_rev_nr(),
-                                          node.get_copy_from_rev()));
+        ! (copy_from.back().first == node->get_rev_nr() &&
+           copy_from.back().second == node->get_copy_from_rev())) {
+      copy_from.push_back(copy_from_value(node->get_rev_nr(),
+                                          node->get_copy_from_rev()));
     }
   }
 
@@ -389,22 +391,22 @@ int ConvertRepository::prescan(const SvnDump::File::Node& node)
     // Ignore pathname which only add or modify directories, but
     // do care about all entries which add or modify files, and
     // those which copy directories.
-    if (node.get_action() == SvnDump::File::Node::ACTION_DELETE ||
-        node.get_kind()   == SvnDump::File::Node::KIND_FILE ||
-        node.has_copy_from()) {
-      if (! repository->find_branch_by_path(node.get_path())) {
+    if (node->get_action() == SvnDump::File::Node::ACTION_DELETE ||
+        node->get_kind()   == SvnDump::File::Node::KIND_FILE ||
+        node->has_copy_from()) {
+      if (! repository->find_branch_by_path(node->get_path())) {
         std::ostringstream buf;
-        buf << "Could not find branch for " << node.get_path()
-            << " in r" << dump.get_rev_nr();
+        buf << "Could not find branch for " << node->get_path()
+            << " in r" << node->get_rev_nr();
         status.warn(buf.str());
         ++errors;
       }
 
-      if (node.has_copy_from() &&
-          ! repository->find_branch_by_path(node.get_copy_from_path())) {
+      if (node->has_copy_from() &&
+          ! repository->find_branch_by_path(node->get_copy_from_path())) {
         std::ostringstream buf;
-        buf << "Could not find branch for " << node.get_copy_from_path()
-            << " in r" << dump.get_rev_nr();
+        buf << "Could not find branch for " << node->get_copy_from_path()
+            << " in r" << node->get_rev_nr();
         status.warn(buf.str());
         ++errors;
       }
@@ -414,9 +416,10 @@ int ConvertRepository::prescan(const SvnDump::File::Node& node)
   return errors;
 }
 
-void ConvertRepository::operator()(const SvnDump::File::Node& node)
+void ConvertRepository::operator()(SvnDump::File::Node& _node)
 {
-  rev = dump.get_rev_nr();
+  node = &_node;
+  rev = node->get_rev_nr();
   if (rev != last_rev) {
     // Commit any changes to the repository's index.  If there were no
     // Git-visible changes, this will be a no-op.
@@ -448,24 +451,24 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
 
   bool changed = false;
 
-  filesystem::path pathname(node.get_path());
+  filesystem::path pathname(node->get_path());
   if (! pathname.empty()) {
-    SvnDump::File::Node::Kind   kind   = node.get_kind();
-    SvnDump::File::Node::Action action = node.get_action();
+    SvnDump::File::Node::Kind   kind   = node->get_kind();
+    SvnDump::File::Node::Action action = node->get_action();
 
 
     if (kind == SvnDump::File::Node::KIND_FILE &&
         (action == SvnDump::File::Node::ACTION_ADD ||
          action == SvnDump::File::Node::ACTION_CHANGE)) {
-      changed = add_file(node);
+      changed = add_file();
     }
     else if (action == SvnDump::File::Node::ACTION_DELETE) {
-      changed = delete_item(node);
+      changed = delete_item();
     }
-    else if (node.has_copy_from() &&
+    else if (node->has_copy_from() &&
              kind   == SvnDump::File::Node::KIND_DIR   &&
              action == SvnDump::File::Node::ACTION_ADD) {
-      changed = add_directory(node);
+      changed = add_directory();
     }
 
     if (! changed)

@@ -142,7 +142,7 @@ bool File::read_next(const bool ignore_text, const bool verify)
         else if (text_content_length > 0)
           state = STATE_BODY;
         else if (saw_node_path)
-          return true;
+          goto success;
         else
           state = STATE_NEXT;
       }
@@ -220,7 +220,7 @@ bool File::read_next(const bool ignore_text, const bool verify)
       else if (curr_rev == -1 || curr_node.curr_txn == -1)
         state = STATE_NEXT;
       else
-        return true;
+        goto success;
       break;
     }
 
@@ -237,7 +237,7 @@ bool File::read_next(const bool ignore_text, const bool verify)
         } else {
           curr_node.text = curr_node.static_buffer;
         }
-        curr_node.text_len = text_content_length;
+        curr_node.text_len = static_cast<std::size_t>(text_content_length);
 
         handle->read(curr_node.text, text_content_length);
 
@@ -281,7 +281,7 @@ bool File::read_next(const bool ignore_text, const bool verify)
       if (curr_rev == -1 || curr_node.curr_txn == -1)
         state = STATE_NEXT;
       else
-        return true;
+        goto success;
 
     case STATE_ERROR:
       assert(false);
@@ -289,6 +289,14 @@ bool File::read_next(const bool ignore_text, const bool verify)
     }
   }
   return false;
+
+ success:
+  curr_node.rev_author = rev_author;
+  curr_node.rev_date   = rev_date;
+  curr_node.rev_log    = rev_log;
+  curr_node.curr_rev   = curr_rev;
+
+  return true;
 }
 
 void FilePrinter::operator()(const SvnDump::File::Node& node)

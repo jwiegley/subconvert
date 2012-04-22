@@ -50,23 +50,22 @@ struct ConvertRepository
 typedef std::vector<std::pair<Git::BranchPtr,
                               filesystem::path> > branches_mapping_t;
 
-  const SvnDump::File& dump;
-  StatusDisplay&       status;
-  Options              opts;
-  Authors              authors;
-  int                  rev;
-  int                  last_rev;
-  rev_trees_map        rev_trees;
-  copy_from_list       copy_from;
-  Git::Repository *    repository; // let it leak!
-  Git::BranchPtr       history_branch;
-  submodule_list_t     modules_list;
+  SvnDump::File::Node * node;
+  StatusDisplay&        status;
+  Options               opts;
+  Authors               authors;
+  int                   rev;
+  int                   last_rev;
+  rev_trees_map         rev_trees;
+  copy_from_list        copy_from;
+  Git::Repository *     repository; // let it leak!
+  Git::BranchPtr        history_branch;
+  submodule_list_t      modules_list;
 
-  ConvertRepository(const SvnDump::File&           _dump,
-                    const filesystem::path& pathname,
-                    StatusDisplay&                 _status,
-                    const Options&                 _opts = Options())
-    : dump(_dump), status(_status), opts(_opts), last_rev(-1),
+  ConvertRepository(const filesystem::path& pathname,
+                    StatusDisplay&          _status,
+                    const Options&          _opts = Options())
+    : status(_status), opts(_opts), last_rev(-1),
       repository(new Git::Repository
                  (pathname, status,
                   bind(&ConvertRepository::set_commit_info, this, _1))),
@@ -79,7 +78,7 @@ typedef std::vector<std::pair<Git::BranchPtr,
   }
 
   void         free_past_trees();
-  Git::TreePtr get_past_tree(const SvnDump::File::Node& node);
+  Git::TreePtr get_past_tree();
 
   void set_commit_info(Git::CommitPtr commit);
 
@@ -93,12 +92,12 @@ typedef std::vector<std::pair<Git::BranchPtr,
   std::string describe_change(SvnDump::File::Node::Kind   kind,
                               SvnDump::File::Node::Action action);
 
-  bool add_file(const SvnDump::File::Node& node);
-  bool add_directory(const SvnDump::File::Node& node);
-  bool delete_item(const SvnDump::File::Node& node);
+  bool add_file();
+  bool add_directory();
+  bool delete_item();
 
-  int  prescan(const SvnDump::File::Node& node);
-  void operator()(const SvnDump::File::Node& node);
+  int  prescan(SvnDump::File::Node& node);
+  void operator()(SvnDump::File::Node& node);
 
   void finish();
 };

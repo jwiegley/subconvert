@@ -34,10 +34,12 @@
 
 #include <vector>
 #include <list>
+#include <queue>
 #include <map>
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 #include <ctime>
 
@@ -62,3 +64,7 @@
 #ifdef HAVE_OPENSSL_SHA_H
 #include <openssl/sha.h>
 #endif
+
+#include <boost/thread.hpp>
+#include <boost/thread/condition.hpp>
+#include <boost/thread/xtime.hpp>
