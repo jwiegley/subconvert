@@ -153,31 +153,17 @@ void ConvertRepository::set_commit_info(Git::CommitPtr commit)
   commit->set_message(buf.str());
 }
 
-std::pair<Submodule *, filesystem::path>
+std::pair<filesystem::path, Submodule *>
 ConvertRepository::find_submodule(const filesystem::path& pathname)
 {
-  for (submodule_list_t::iterator i = modules_list.begin();
-       i != modules_list.end();
-       ++i) {
-    Submodule * submodule(*i);
-
-    for (Submodule::module_map_t::iterator
-           j = submodule->file_mappings.begin();
-         j != submodule->file_mappings.end();
-         ++j) {
-      if (starts_with(pathname.string(), (*j).first)) {
-        filesystem::path newpath;
-        if (pathname.string() == (*j).first)
-          newpath = pathname;
-        else
-          newpath = filesystem::path((*j).second +
-                                     std::string(pathname.string(),
-                                                 (*j).first.length()));
-        return std::make_pair(submodule, newpath);
-      }
-    }
+  for (filesystem::path dirname(pathname);
+       ! dirname.empty();
+       dirname = dirname.parent_path()) {
+    submodules_map_t::iterator i = submodules_map.find(dirname);
+    if (i != submodules_map.end())
+      return (*i).second;
   }
-  return std::make_pair(nullptr, filesystem::path());
+  return std::make_pair(filesystem::path(), nullptr);
 }
 
 void ConvertRepository::update_object(Git::Repository *       repo,
@@ -461,8 +447,8 @@ void ConvertRepository::operator()(SvnDump::File::Node& _node)
         }
       }
 
-      for (submodule_list_t::iterator i = modules_list.begin();
-           i != modules_list.end();
+      for (submodule_list_t::iterator i = submodules_list.begin();
+           i != submodules_list.end();
            ++i)
         (*i)->repository->write(last_rev);
 
@@ -474,16 +460,19 @@ void ConvertRepository::operator()(SvnDump::File::Node& _node)
 
     process_change(repository, pathname);
 
-    // Add the change to any related submodule, according to
-    // manifest.txt.  We actually add this to a branch in the current
-    // repository for efficiency's sake, allowing it to be sifted out
-    // using git-filter-branch afterward.
-    Submodule *      submodule;
-    filesystem::path subpath;
-    std::tr1::tie(submodule, subpath) = find_submodule(pathname);
+    if (! submodules_map.empty()) {
+      // Add the change to any related submodule, according to
+      // manifest.txt.  We actually add this to a branch in the current
+      // repository for efficiency's sake, allowing it to be sifted out
+      // using git-filter-branch afterward.
+      Submodule *      submodule;
+      filesystem::path subpath;
 
-    if (submodule)
-      process_change(submodule->repository, subpath);
+      std::tr1::tie(subpath, submodule) = find_submodule(pathname);
+
+      if (submodule)
+        process_change(submodule->repository, subpath);
+    }
   }
 }
 

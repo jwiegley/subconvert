@@ -47,8 +47,10 @@ struct ConvertRepository
   typedef std::pair<int, int>        copy_from_value;
   typedef std::list<copy_from_value> copy_from_list;
 
-  typedef std::vector<std::pair<Git::BranchPtr,
-                                filesystem::path> > branches_mapping_t;
+  typedef std::vector<Submodule *>          submodules_list_t;
+  typedef std::map<filesystem::path,
+                   std::pair<filesystem::path,
+                             Submodule *> > submodules_map_t;
 
   SvnDump::File::Node * node;
   StatusDisplay&        status;
@@ -60,7 +62,8 @@ struct ConvertRepository
   copy_from_list        copy_from;
   Git::Repository *     repository; // let it leak!
   Git::BranchPtr        history_branch;
-  submodule_list_t      modules_list;
+  submodules_list_t     submodules_list;
+  submodules_map_t      submodules_map;
 
   ConvertRepository(const filesystem::path& pathname,
                     StatusDisplay&          _status,
@@ -82,7 +85,7 @@ struct ConvertRepository
 
   void set_commit_info(Git::CommitPtr commit);
 
-  std::pair<Submodule *, filesystem::path>
+  std::pair<filesystem::path, Submodule *>
   find_submodule(const filesystem::path& pathname);
 
   void update_object(Git::Repository *       repo,

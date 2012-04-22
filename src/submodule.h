@@ -42,20 +42,14 @@ typedef std::vector<Submodule *> submodule_list_t;
 
 struct Submodule : public noncopyable
 {
-  typedef std::map<std::string, std::string> module_map_t;
-
   std::string        pathname;
-  module_map_t       file_mappings;
   ConvertRepository& parent;
-  Git::TreePtr       rev_tree;
   Git::Repository *  repository;
 
-  Submodule(std::string _pathname, module_map_t _file_mappings,
-            ConvertRepository& _parent);
+  Submodule(std::string _pathname, ConvertRepository& _parent);
 
   static int load_modules(const filesystem::path& modules_file,
-                          ConvertRepository& parent,
-                          submodule_list_t& modules_list);
+                          ConvertRepository& parent);
 };
 
 #endif // _SUBMODULE_H

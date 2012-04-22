@@ -33,9 +33,8 @@
 #include "submodule.h"
 #include "converter.h"
 
-Submodule::Submodule(std::string _pathname, module_map_t _file_mappings,
-                     ConvertRepository& _parent)
-  : pathname(_pathname), file_mappings(_file_mappings), parent(_parent)
+Submodule::Submodule(std::string _pathname, ConvertRepository& _parent)
+  : pathname(_pathname), parent(_parent)
 {
   filesystem::create_directories(pathname);
 
@@ -51,20 +50,19 @@ Submodule::Submodule(std::string _pathname, module_map_t _file_mappings,
 }
 
 int Submodule::load_modules(const filesystem::path& modules_file,
-                            ConvertRepository& parent,
-                            submodule_list_t& modules_list)
+                            ConvertRepository& parent)
 {
   int errors = 0;
 
-  modules_list.clear();
+  parent.submodules_map.clear();
+  parent.submodules_list.clear();
 
   static const int MAX_LINE = 8192;
   char linebuf[MAX_LINE + 1];
 
   filesystem::ifstream in(modules_file);
 
-  std::string  curr_module;
-  module_map_t module_map;
+  Submodule * curr_module = nullptr;
 
   while (in.good() && ! in.eof()) {
     in.getline(linebuf, MAX_LINE);
@@ -73,12 +71,13 @@ int Submodule::load_modules(const filesystem::path& modules_file,
       continue;
     }
     else if (linebuf[0] == '[') {
-      curr_module = std::string(linebuf, 1, std::strlen(linebuf) - 2);
-      modules_list.push_back(new Submodule(curr_module, module_map, parent));
-      module_map.clear();
+      curr_module =
+        new Submodule(std::string(linebuf, 1, std::strlen(linebuf) - 2),
+                      parent);
+      parent.submodules_list.push_back(curr_module);
     }
     else if (const char * p = std::strchr(linebuf, ':')) {
-      if (! curr_module.empty()) {
+      if (curr_module) {
         std::string target_path =
           std::string(linebuf, 0,
                       static_cast<std::string::size_type>(p - linebuf));
@@ -92,15 +91,15 @@ int Submodule::load_modules(const filesystem::path& modules_file,
           source_path = target_path;
 
         if (source_path != "<ignore>") {
-          std::pair<module_map_t::iterator, bool> result =
-            module_map.insert
-            (module_map_t::value_type(source_path, target_path));
-          if (! result.second) {
+          std::pair<ConvertRepository::submodules_map_t::iterator,
+                    bool> result = parent.submodules_map.insert
+            (ConvertRepository::submodules_map_t::value_type
+             (source_path, std::make_pair(target_path, curr_module)));
+          if (! result.second)
             std::cerr << "Failed to load from "
                       << modules_file.string() << ": "
-                      << std::string("[") << curr_module << "]: "
+                      << std::string("[") << curr_module->pathname << "]: "
                       << source_path << " -> " << target_path;
-          }
         }
       }
     }
