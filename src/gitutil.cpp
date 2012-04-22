@@ -333,14 +333,7 @@ void Commit::remove(const filesystem::path& pathname)
  */
 bool Commit::has_tree() const
 {
-#if 1
   return tree;
-#else
-  if (branch->prefix.empty())
-    return tree;
-  else
-    return tree->lookup(branch->prefix);
-#endif
 }
 
 /**
@@ -365,35 +358,12 @@ void Commit::write()
   assert(! is_written());
   assert(tree);
 
-#if 1
-  TreePtr subtree = tree;
-#else
-  TreePtr subtree;
-  if (branch->prefix.empty()) {
-    subtree = tree;
-  } else {
-    // Lookup the part of this commit's tree which actually belongs to
-    // this commit.  This is because in Subversion, each full tree
-    // contains many, many branches.  Rather than splitting up this tree
-    // into many sub-trees, we associate the full tree with the commits
-    // in all the branches, but use the branch prefix to extract the
-    // subtree within this main tree relating to the commit.
-    ObjectPtr obj(tree->lookup(branch->prefix));
-    if (! obj)
-      return;                 // don't write commits with empty trees
-    assert(obj->is_tree());
-    subtree = dynamic_cast<Tree *>(obj.get());
-  }
-  if (! subtree)
-    subtree = tree = repository->create_tree();
-#endif
-
-  assert(! subtree->empty());
-  if (! subtree->is_written())
-    subtree->write();
+  assert(! tree->empty());
+  if (! tree->is_written())
+    tree->write();
 
   git_tree * tree_obj;
-  git_check(git_tree_lookup(&tree_obj, *repository, &subtree->oid));
+  git_check(git_tree_lookup(&tree_obj, *repository, &tree->oid));
 
   git_commit * parent_obj = NULL;
   if (parent) {
@@ -405,7 +375,8 @@ void Commit::write()
                                 NULL, message_str.c_str(), tree_obj,
                                 parent_obj ? 1 : 0, parent_obj));
 
-  git_commit_free(parent_obj);
+  if (parent_obj)
+    git_commit_free(parent_obj);
   git_tree_free(tree_obj);
 
   // Once written, we no longer need the parent
@@ -504,81 +475,10 @@ TreePtr Repository::create_tree(const std::string& name,
   return tree;
 }
 
-#if defined(READ_EXISTING_GIT_REPOSITORY)
-
-TreePtr Repository::read_tree(git_tree * tree_obj, const std::string& name,
-                              unsigned int attributes)
-{
-  TreePtr tree(new Tree(this, tree_obj, name, attributes));
-
-  std::size_t size = git_tree_entrycount(tree_obj);
-  for (std::size_t i = 0; i < size; ++i) {
-    git_tree_entry * entry =
-      git_tree_entry_byindex(tree_obj, static_cast<int>(i));
-    if (! entry)
-      throw std::logic_error("Could not read Git tree entry");
-
-    std::string entry_name(git_tree_entry_name(entry));
-    unsigned int entry_attributes(git_tree_entry_attributes(entry));
-
-    git_object * git_obj;
-    git_check(git_tree_entry_2object(&git_obj, entry));
-
-    switch (git_object_type(git_obj)) {
-    case GIT_OBJ_BLOB: {
-      git_blob * blob_obj(reinterpret_cast<git_blob *>(git_obj));
-      BlobPtr    blob(new Blob(this, blob_obj, NULL, entry_name,
-                               entry_attributes));
-      blob->tree_entry = entry;
-      tree->entries.insert(Tree::entries_pair(entry_name, blob));
-      break;
-    }
-    case GIT_OBJ_TREE: {
-      git_tree * subtree_obj(reinterpret_cast<git_tree *>(git_obj));
-      TreePtr    subtree(read_tree(subtree_obj, entry_name, entry_attributes));
-      subtree->tree_entry = entry;
-      tree->entries.insert(Tree::entries_pair(entry_name, subtree));
-      break;
-    }
-
-    default:
-      assert(false);
-      break;
-    }
-  }
-
-  assert(check_size(*tree));
-
-  tree->written = true;
-
-  return tree;
-}
-
-#endif // READ_EXISTING_GIT_REPOSITORY
-
 CommitPtr Repository::create_commit(CommitPtr parent)
 {
   return new Commit(this, NULL, parent);
 }
-
-#if defined(READ_EXISTING_GIT_REPOSITORY)
-
-CommitPtr Repository::read_commit(const git_oid * oid)
-{
-  git_commit * git_commit;
-  git_check(git_commit_lookup(&git_commit, *this, oid));
-
-  // The commit prefix is no longer important at this stage, as its
-  // only used to determining which subset of the commit's tree to use
-  // when it's first written.
-  git_tree * commit_tree(git_commit_tree(git_commit));
-
-  CommitPtr commit(new Commit(this, git_commit));
-  commit->tree = read_tree(commit_tree);
-  return commit;
-}
-
-#endif // READ_EXISTING_GIT_REPOSITORY
 
 bool Repository::write(int related_revision)
 {

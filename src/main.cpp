@@ -204,10 +204,6 @@ int main(int argc, char *argv[])
         errors += Submodule::load_modules(modules_file, converter,
                                           converter.modules_list);
 
-#if defined(READ_EXISTING_GIT_REPOSITORY)
-      errors += converter.load_revmap();
-#endif // READ_EXISTING_GIT_REPOSITORY
-
       // Validate this information as much as possible before possibly
       // wasting the user's time with useless work.
 

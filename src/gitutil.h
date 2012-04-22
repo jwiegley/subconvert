@@ -308,11 +308,7 @@ namespace Git
       return new_commit;
     }
 
-#ifdef READ_FROM_DISK
-    CommitPtr clone(bool with_copy = false);
-#else
     CommitPtr clone(bool with_copy = true);
-#endif
 
     std::string get_message() const {
       return message_str;
@@ -465,15 +461,8 @@ namespace Git
 
     TreePtr   create_tree(const std::string& name = "",
                           unsigned int attributes = 040000);
-#if defined(READ_EXISTING_GIT_REPOSITORY)
-    TreePtr   read_tree(git_tree * git_tree, const std::string& name = "",
-                        unsigned int attributes = 0040000);
-#endif
 
     CommitPtr create_commit(CommitPtr parent = NULL);
-#if defined(READ_EXISTING_GIT_REPOSITORY)
-    CommitPtr read_commit(const git_oid * oid);
-#endif
 
     BranchPtr find_branch_by_name(const std::string& name,
                                   BranchPtr default_obj = NULL);
@@ -487,60 +476,6 @@ namespace Git
     void      create_tag(CommitPtr commit, const std::string& name);
     void      create_file(const filesystem::path& pathname,
                           const std::string& content = "");
-
-#if defined(READ_EXISTING_GIT_REPOSITORY)
-
-    struct commit_iterator
-    {
-      typedef CommitPtr value_type;
-
-      CommitPtr     commit;
-      RepositoryPtr repo;
-
-      shared_ptr<git_revwalk> walk;
-
-      commit_iterator() : commit(NULL), repo(NULL) {}
-      ~commit_iterator() {}
-
-      bool operator==(const commit_iterator& other) const {
-        return commit == other.commit;
-      }
-      bool operator!=(const commit_iterator& other) const {
-        return ! (*this == other);
-      }
-
-      CommitPtr operator *() {
-        return commit;
-      }
-      void operator++() {
-#if defined(READ_EXISTING_GIT_REPOSITORY)
-        git_commit * git_commit = git_revwalk_next(walk.get());
-        commit = new Commit(repo, git_commit);
-#endif
-      }
-      commit_iterator& operator++(int) {
-        ++(*this);
-        return *this;
-      }
-    };
-
-    commit_iterator commits_begin()
-    {
-      commit_iterator start;
-      git_revwalk *   walk;
-
-      git_check(git_revwalk_new(&walk, repo));
-
-      start.repo = this;
-      start.walk = shared_ptr<git_revwalk>(walk, git_revwalk_free);
-
-      return start;
-    }
-    commit_iterator commits_end() {
-      return commit_iterator();
-    }
-
-#endif // READ_EXISTING_GIT_REPOSITORY
   };
 }
 

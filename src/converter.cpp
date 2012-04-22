@@ -434,7 +434,7 @@ void ConvertRepository::operator()(const SvnDump::File::Node& node)
       assert(result.second);
 #endif
 
-      if (rev % 1000 == 0) {
+      if (rev % 10000 == 0) {
         repository->write_branches();
         repository->garbage_collect();
       }
