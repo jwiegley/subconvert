@@ -629,7 +629,6 @@ void Repository::garbage_collect()
 {
   std::system("git config gc.autopacklimit 0");
   std::system("git config loose.compression 0");
-  std::system("git config pack.compression 1");
 
   log.newline();
   std::system("git gc");
