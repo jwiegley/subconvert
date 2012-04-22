@@ -77,6 +77,14 @@ AM_CONDITIONAL(USE_THREADS, test x$threads = xtrue)
 
 AC_SUBST([BOOST_SUFFIX], $BOOST_SUFFIX)
 
+AC_ARG_ENABLE(cache,
+  [  --enable-cache          Enable use of the Boost.Serialization cache],
+  [case "${enableval}" in
+    yes) cache=true ;;
+    no)  cache=false ;;
+    *) AC_MSG_ERROR(bad value ${enableval} for --enable-cache) ;;
+  esac],[cache=false])
+
 AC_ARG_ENABLE(doxygen,
   [  --enable-doxygen        Turns on generation of code documentation],
   [case "${enableval}" in
@@ -126,13 +134,48 @@ if [ test x$threads = xtrue ]; then
        [boost_thread_cpplib_avail_cv_=false])
      AC_LANG_POP
      LIBS=$boost_thread_save_libs])
-  
+
   if [test x$boost_thread_cpplib_avail_cv_ = xtrue ]; then
     LIBS="-lboost_thread$BOOST_SUFFIX $LIBS"
   else
     AC_MSG_FAILURE("Could not find boost_thread library (set CPPFLAGS and LDFLAGS?)")
   fi
 fi
+
+# check for boost_serialization
+if [ test x$cache = xtrue ]; then
+  AC_CACHE_CHECK(
+    [if boost_serialization is available],
+    [boost_serialization_cpplib_avail_cv_],
+    [boost_serialization_save_libs=$LIBS
+     LIBS="-lboost_serialization$BOOST_SUFFIX -lboost_system$BOOST_SUFFIX $LIBS"
+     AC_LANG_PUSH(C++)
+     AC_LINK_IFELSE(
+       [AC_LANG_PROGRAM(
+          [[#include <boost/archive/binary_oarchive.hpp>
+            #include <iostream>
+            struct foo {
+              int a;
+              template<class Archive>
+              void serialize(Archive & ar, const unsigned int) {
+                ar & a;
+              }
+            };]],
+          [[boost::archive::binary_oarchive oa(std::cout);
+            foo x;
+            oa << x;]])],
+       [boost_serialization_cpplib_avail_cv_=true],
+       [boost_serialization_cpplib_avail_cv_=false])
+     AC_LANG_POP
+     LIBS=$boost_serialization_save_libs])
+
+  if [test x$boost_serialization_cpplib_avail_cv_ = xtrue -a x$cache = xtrue]; then
+    AC_DEFINE([HAVE_BOOST_SERIALIZATION], [1], [Whether Boost.Serialization is available])
+    LIBS="-lboost_serialization$BOOST_SUFFIX $LIBS"
+  fi
+fi
+
+AM_CONDITIONAL(HAVE_BOOST_SERIALIZATION, test x$boost_serialization_cpplib_avail_cv_ = xtrue -a x$cache = xtrue)
 
 # Checks for header files.
 AC_HEADER_STDC

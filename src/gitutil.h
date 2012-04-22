@@ -138,6 +138,23 @@ namespace Git
     friend inline void intrusive_ptr_release(Object * obj) {
       obj->release();
     }
+
+#if defined(HAVE_BOOST_SERIALIZATION)
+  private:
+    /** Serialization. */
+
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive& ar, const unsigned int /* version */) {
+      ar & repository;
+      ar & oid;
+      ar & refc;
+      ar & name;
+      ar & attributes;
+      ar & written;
+    }
+#endif // HAVE_BOOST_SERIALIZATION
   };
 
   typedef intrusive_ptr<Blob> BlobPtr;
@@ -155,6 +172,18 @@ namespace Git
       else
         return new Blob(repository, &oid, to_name, attributes);
     }
+
+#if defined(HAVE_BOOST_SERIALIZATION)
+  private:
+    /** Serialization. */
+
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive& ar, const unsigned int /* version */) {
+      ar & boost::serialization::base_object<Object>(*this);
+    }
+#endif // HAVE_BOOST_SERIALIZATION
   };
 
   typedef intrusive_ptr<Tree> TreePtr;
@@ -256,6 +285,21 @@ namespace Git
     virtual void write();
 
     void dump_tree(std::ostream& out, int depth = 0);
+
+#if defined(HAVE_BOOST_SERIALIZATION)
+  private:
+    /** Serialization. */
+
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive& ar, const unsigned int /* version */) {
+      ar & boost::serialization::base_object<Object>(*this);
+      ar & builder;
+      ar & entries;
+      ar & modified;
+    }
+#endif // HAVE_BOOST_SERIALIZATION
   };
 
   typedef intrusive_ptr<Commit> CommitPtr;
@@ -338,6 +382,24 @@ namespace Git
       if (tree)
         tree->dump_tree(out);
     }
+
+#if defined(HAVE_BOOST_SERIALIZATION)
+  private:
+    /** Serialization. */
+
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive& ar, const unsigned int /* version */) {
+      ar & boost::serialization::base_object<Object>(*this);
+      ar & parent;
+      ar & tree;
+      ar & branch;
+      ar & new_branch;
+      ar & message_str;
+      ar & signature;
+    }
+#endif // HAVE_BOOST_SERIALIZATION
   };
 
   class Branch : public noncopyable
@@ -386,6 +448,23 @@ namespace Git
     friend inline void intrusive_ptr_release(Branch * obj) {
       obj->release();
     }
+
+#if defined(HAVE_BOOST_SERIALIZATION)
+  private:
+    /** Serialization. */
+
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive& ar, const unsigned int /* version */) {
+      ar & repository;
+      ar & name;
+      ar & prefix;
+      ar & is_tag;
+      ar & commit;
+      ar & next_commit;
+    }
+#endif // HAVE_BOOST_SERIALIZATION
   };
 
   struct Logger
@@ -477,6 +556,24 @@ namespace Git
     void      create_tag(CommitPtr commit, const std::string& name);
     void      create_file(const filesystem::path& pathname,
                           const std::string& content = "");
+
+#if defined(HAVE_BOOST_SERIALIZATION)
+  private:
+    /** Serialization. */
+
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive& ar, const unsigned int /* version */) {
+      ar & repo;
+      ar & log;
+      ar & repo_name;
+      ar & branches_by_name;
+      ar & branches_by_path;
+      ar & commit_queue;
+      ar & set_commit_info;
+    }
+#endif // HAVE_BOOST_SERIALIZATION
   };
 }
 
