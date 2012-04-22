@@ -40,16 +40,19 @@
 #include <iostream>
 #include <sstream>
 #include <utility>
+#include <tr1/tuple>
 
 #include <ctime>
 
 #include <boost/algorithm/string/predicate.hpp>
-#include <boost/checked_delete.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/intrusive_ptr.hpp>
-#include <boost/function.hpp>
-#include <boost/optional.hpp>
 #include <boost/bind.hpp>
+#include <boost/checked_delete.hpp>
+#include <boost/function.hpp>
+#include <boost/intrusive_ptr.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/move/move.hpp>
+#include <boost/optional.hpp>
+#include <boost/shared_ptr.hpp>
 
 #define BOOST_FILESYSTEM_VERSION 3
 #include <boost/filesystem/operations.hpp>
@@ -65,6 +68,8 @@
 #include <openssl/sha.h>
 #endif
 
+#ifdef USE_THREADS
 #include <boost/thread.hpp>
 #include <boost/thread/condition.hpp>
 #include <boost/thread/xtime.hpp>
+#endif

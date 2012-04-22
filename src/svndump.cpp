@@ -182,7 +182,7 @@ bool File::read_next(const bool ignore_text, const bool verify)
         is_key = *p == 'K';
         if (is_key || *p == 'V') {
           q = std::strchr(p, '\n');
-          assert(q != NULL);
+          assert(q != nullptr);
           *q = '\0';
           len = std::atoi(p + 2);
           p = q + 1;
@@ -228,7 +228,6 @@ bool File::read_next(const bool ignore_text, const bool verify)
       if (ignore_text) {
         handle->seekg(text_content_length, std::ios::cur);
       } else {
-        assert(! curr_node.has_text());
         assert(text_content_length > 0);
 
         if (text_content_length > STATIC_BUFLEN) {

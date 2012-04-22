@@ -1,1 +1,2 @@
-./configure --enable-pch --prefix=/usr/local/stow/subconvert CC=clang-mp-3.1 LD=clang++-mp-3.1 CXX=clang++-mp-3.1 CXXFLAGS="-g2 -ggdb" CPPFLAGS="-isystem /opt/local/include -isystem /usr/local/include" LDFLAGS="-L/opt/local/lib -L/usr/local/lib"
+./configure --enable-pch --prefix=/usr/local/stow/subconvert CC=clang-mp-3.1 LD=clang++-mp-3.1 CXX=clang++-mp-3.1 CXXFLAGS="-g2 -ggdb -DASSERTS" CPPFLAGS="-isystem /opt/local/include -isystem /usr/local/include" LDFLAGS="-L/opt/local/lib -L/usr/local/lib"
+#./configure --enable-pch --prefix=/usr/local/stow/subconvert CC=clang-mp-3.1 LD=clang++-mp-3.1 CXX=clang++-mp-3.1 CXXFLAGS="-O3" CPPFLAGS="-isystem /opt/local/include -isystem /usr/local/include" LDFLAGS="-L/opt/local/lib -L/usr/local/lib"

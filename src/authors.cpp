@@ -75,7 +75,7 @@ int Authors::load_authors(const filesystem::path& pathname)
     std::string author_id;
     AuthorInfo  author;
     for (const char * p = std::strtok(linebuf, "\t"); p;
-         p = std::strtok(NULL, "\t")) {
+         p = std::strtok(nullptr, "\t")) {
       switch (field) {
       case 0:
         author_id = p;

@@ -37,11 +37,10 @@
 
 struct Options
 {
-  bool verbose;
-  bool quiet;
-  int  debug;
-
-  Options() : verbose(false), quiet(false), debug(0) {}
+  bool verbose = false;
+  bool quiet   = false;
+  int  debug   = 0;
+  int  collect = 0;
 };
 
 class StatusDisplay : public Git::Logger, public noncopyable
@@ -73,14 +72,14 @@ public:
   void debug(const std::string& message) const {
     if (debug_mode()) {
       newline();
-      out << "r" << rev << ": [DEBUG]: " << message << std::endl;
+      out << "r" << rev << ": " << message << std::endl;
       need_newline = false;
     }
   }
   void info(const std::string& message) const {
     if (opts.verbose || debug_mode()) {
       newline();
-      out << "r" << rev << ": [INFO]:  " << message << std::endl;
+      out << "r" << rev << ": " << message << std::endl;
       need_newline = false;
     }
   }
@@ -94,13 +93,13 @@ public:
 
   void warn(const std::string& message) const {
     newline();
-    out << "r" << rev << ": [WARN]:  " << message << std::endl;
+    out << "r" << rev << ": " << message << std::endl;
     need_newline = false;
   }
   void error(const std::string& message) const {
 #if 0
     newline();
-    out << "r" << rev << ": [ERROR]: " << message << std::endl;
+    out << "r" << rev << ": " << message << std::endl;
     need_newline = false;
 #else
     throw std::runtime_error(message);

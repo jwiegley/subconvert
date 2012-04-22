@@ -47,6 +47,7 @@ Submodule::Submodule(std::string _pathname, module_map_t _file_mappings,
     new Git::Repository(filesystem::system_complete(pathname),
                         parent.status, function<void(Git::CommitPtr)>
                         (bind(&ConvertRepository::set_commit_info, &parent, _1)));
+  repository->repo_name = pathname;
 }
 
 int Submodule::load_modules(const filesystem::path& modules_file,
@@ -72,33 +73,34 @@ int Submodule::load_modules(const filesystem::path& modules_file,
       continue;
     }
     else if (linebuf[0] == '[') {
-      if (! curr_module.empty() && curr_module != "<ignore>") {
-        modules_list.push_back(new Submodule(curr_module, module_map, parent));
-        module_map.clear();
-      }
       curr_module = std::string(linebuf, 1, std::strlen(linebuf) - 2);
+      modules_list.push_back(new Submodule(curr_module, module_map, parent));
+      module_map.clear();
     }
     else if (const char * p = std::strchr(linebuf, ':')) {
-      std::string target_path =
-        std::string(linebuf, 0, static_cast<std::string::size_type>(p - linebuf));
+      if (! curr_module.empty()) {
+        std::string target_path =
+          std::string(linebuf, 0,
+                      static_cast<std::string::size_type>(p - linebuf));
 
-      ++p;
-      while (std::isspace(*p))
         ++p;
+        while (std::isspace(*p))
+          ++p;
 
-      std::string source_path = std::string(p);
-      if (source_path == ".")
-        source_path = target_path;
+        std::string source_path = std::string(p);
+        if (source_path == ".")
+          source_path = target_path;
 
-      if (source_path != "<ignore>") {
-        std::pair<module_map_t::iterator, bool> result =
-          module_map.insert
-          (module_map_t::value_type(source_path, target_path));
-        if (! result.second) {
-          std::cerr << "Failed to load from "
-                    << modules_file.string() << ": "
-                    << std::string("[") << curr_module << "]: "
-                    << source_path << " -> " << target_path;
+        if (source_path != "<ignore>") {
+          std::pair<module_map_t::iterator, bool> result =
+            module_map.insert
+            (module_map_t::value_type(source_path, target_path));
+          if (! result.second) {
+            std::cerr << "Failed to load from "
+                      << modules_file.string() << ": "
+                      << std::string("[") << curr_module << "]: "
+                      << source_path << " -> " << target_path;
+          }
         }
       }
     }

@@ -47,8 +47,8 @@ struct ConvertRepository
   typedef std::pair<int, int>        copy_from_value;
   typedef std::list<copy_from_value> copy_from_list;
 
-typedef std::vector<std::pair<Git::BranchPtr,
-                              filesystem::path> > branches_mapping_t;
+  typedef std::vector<std::pair<Git::BranchPtr,
+                                filesystem::path> > branches_mapping_t;
 
   SvnDump::File::Node * node;
   StatusDisplay&        status;
@@ -82,19 +82,23 @@ typedef std::vector<std::pair<Git::BranchPtr,
 
   void set_commit_info(Git::CommitPtr commit);
 
-  void applicable_branches(const filesystem::path& pathname,
-                           branches_mapping_t& branches);
+  std::pair<Submodule *, filesystem::path>
+  find_submodule(const filesystem::path& pathname);
 
-  void update_object(const filesystem::path& pathname,
-                     Git::ObjectPtr obj = NULL,
-                     Git::BranchPtr from_branch = NULL);
+  void update_object(Git::Repository *       repo,
+                     const filesystem::path& pathname,
+                     Git::ObjectPtr          obj         = nullptr,
+                     Git::BranchPtr          from_branch = nullptr,
+                     std::string             debug_text  = "");
 
+  void        process_change(Git::Repository * repo,
+                             const filesystem::path& pathname);
   std::string describe_change(SvnDump::File::Node::Kind   kind,
                               SvnDump::File::Node::Action action);
 
-  bool add_file();
-  bool add_directory();
-  bool delete_item();
+  bool add_file(Git::Repository * repo, const filesystem::path& pathname);
+  bool add_directory(Git::Repository * repo, const filesystem::path& pathname);
+  bool delete_item(Git::Repository * repo, const filesystem::path& pathname);
 
   int  prescan(SvnDump::File::Node& node);
   void operator()(SvnDump::File::Node& node);

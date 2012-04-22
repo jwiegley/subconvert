@@ -55,7 +55,7 @@ struct Authors
   StatusDisplay * status;
   int             last_rev;
 
-  Authors() : status(NULL), last_rev(-1) {}
+  Authors() : status(nullptr), last_rev(-1) {}
   Authors(StatusDisplay& _status) : status(&_status), last_rev(-1) {}
 
   int load_authors(const filesystem::path& pathname);

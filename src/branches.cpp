@@ -54,8 +54,8 @@ int Branches::load_branches(const filesystem::path& pathname,
     int            field  = 0;
 
     for (const char * p = std::strtok(linebuf, "\t");
-         p != NULL;
-         p = std::strtok(NULL, "\t")) {
+         p != nullptr;
+         p = std::strtok(nullptr, "\t")) {
       switch (field) {
       case 0:
         if (*p == 't')

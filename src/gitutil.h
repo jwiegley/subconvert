@@ -94,8 +94,8 @@ namespace Git
     Object(RepositoryPtr _repository, git_oid * _oid,
            const std::string& _name = "", unsigned int _attributes = 0)
       : repository(_repository), refc(0), name(_name),
-        attributes(_attributes), written(_oid != NULL) {
-      if (_oid != NULL)
+        attributes(_attributes), written(_oid != nullptr) {
+      if (_oid != nullptr)
         oid = *_oid;
     }
 
@@ -165,7 +165,7 @@ namespace Git
 
     git_treebuilder * builder;
 
-    friend bool check_size(const Tree& tree);
+    friend bool check_size(const Repository& repository, const Tree& tree);
 
   protected:
     typedef std::map<std::string, ObjectPtr>  entries_map;
@@ -181,7 +181,7 @@ namespace Git
 
       entries_map::iterator i = entries.find(name);
       if (i == entries.end())
-        return NULL;
+        return nullptr;
 
       ObjectPtr result;
       if (++segment == end) {
@@ -202,15 +202,15 @@ namespace Git
   public:
     Tree(RepositoryPtr repository, git_oid * _oid,
          const std::string& name, unsigned int attributes = 0040000)
-      : Object(repository, _oid, name, attributes), builder(NULL),
+      : Object(repository, _oid, name, attributes), builder(nullptr),
         modified(false) {}
 
     Tree(const Tree& other)
-      : Object(other.repository, NULL, other.name, other.attributes),
-        builder(NULL), entries(other.entries), modified(false) {}
+      : Object(other.repository, nullptr, other.name, other.attributes),
+        builder(nullptr), entries(other.entries), modified(false) {}
 
     virtual ~Tree() {
-      if (builder != NULL)
+      if (builder != nullptr)
         git_treebuilder_free(builder);
     }
 
@@ -273,13 +273,13 @@ namespace Git
     std::string     message_str;
     git_signature * signature;
 
-    Commit(RepositoryPtr repo, git_oid * _oid, CommitPtr _parent = NULL,
+    Commit(RepositoryPtr repo, git_oid * _oid, CommitPtr _parent = nullptr,
            const std::string& name = "", unsigned int attributes = 0040000)
       : Object(repo, _oid, name, attributes), parent(_parent),
-        new_branch(false), signature(NULL) {}
+        new_branch(false), signature(nullptr) {}
 
     virtual ~Commit() {
-      if (signature != NULL)
+      if (signature != nullptr)
         git_signature_free(signature);
     }
 
@@ -356,12 +356,12 @@ namespace Git
 
     Branch(RepositoryPtr repo, const std::string& _name = "master",
            bool _is_tag = false)
-      : git_ref(NULL), repository(repo), name(_name), is_tag(_is_tag),
+      : git_ref(nullptr), repository(repo), name(_name), is_tag(_is_tag),
         refc(0) {}
 
     ~Branch() {
       assert(refc == 0);
-      if (git_ref != NULL)
+      if (git_ref != nullptr)
         git_reference_free(git_ref);
     }
 
@@ -377,8 +377,8 @@ namespace Git
         checked_delete(this);
     }
 
-    CommitPtr get_commit(BranchPtr from_branch = NULL);
-    void      update(CommitPtr ptr = NULL);
+    CommitPtr get_commit(BranchPtr from_branch = nullptr);
+    void      update(CommitPtr ptr = nullptr);
 
     friend inline void intrusive_ptr_add_ref(Branch * obj) {
       obj->acquire();
@@ -430,6 +430,7 @@ namespace Git
     typedef branches_path_map::value_type         branches_path_value;
 
     Logger&                   log;
+    std::string               repo_name;
     branches_name_map         branches_by_name;
     branches_path_map         branches_by_path;
     std::vector<CommitPtr>    commit_queue;
@@ -437,7 +438,7 @@ namespace Git
 
     Repository(const filesystem::path& pathname, Logger& _log,
                function<void(CommitPtr)> _set_commit_info = no_commit_info)
-      : repo(NULL), log(_log), set_commit_info(_set_commit_info)
+      : repo(nullptr), log(_log), set_commit_info(_set_commit_info)
     {
       if (git_repository_open(&repo, pathname.string().c_str()) != 0)
         if (git_repository_open(&repo,
@@ -447,7 +448,7 @@ namespace Git
                                  (pathname / ".git").string());
     }
     ~Repository() {
-      if (repo != NULL)
+      if (repo != nullptr)
         git_repository_free(repo);
     }
 
@@ -462,12 +463,12 @@ namespace Git
     TreePtr   create_tree(const std::string& name = "",
                           unsigned int attributes = 040000);
 
-    CommitPtr create_commit(CommitPtr parent = NULL);
+    CommitPtr create_commit(CommitPtr parent = nullptr);
 
     BranchPtr find_branch_by_name(const std::string& name,
-                                  BranchPtr default_obj = NULL);
+                                  BranchPtr default_obj = nullptr);
     BranchPtr find_branch_by_path(const filesystem::path& name,
-                                  BranchPtr default_obj = NULL);
+                                  BranchPtr default_obj = nullptr);
     void      delete_branch(BranchPtr branch, int related_revision);
     bool      write(int related_revision);
     void      write_branches();

@@ -85,7 +85,7 @@ namespace {
         waiting_on_empty.wait(lock);
 
       delete the_queue;
-      the_queue = NULL;
+      the_queue = nullptr;
 
       waiting_on_contents.notify_one();
     }
@@ -171,6 +171,8 @@ int main(int argc, char *argv[])
           branches_file = argv[++i];
         else if (std::strcmp(&argv[i][2], "modules") == 0)
           modules_file = argv[++i];
+        else if (std::strcmp(&argv[i][2], "gc") == 0)
+          opts.collect = lexical_cast<int>(argv[++i]);
       }
       else if (std::strcmp(&argv[i][1], "v") == 0)
         opts.verbose = true;
@@ -307,7 +309,6 @@ int main(int argc, char *argv[])
           int rev = dump.get_rev_nr();
           if (cutoff != -1 && rev >= cutoff)
             break;
-          std::cerr << "scanning in rev " << rev << std::endl;
           if (start == -1 || rev >= start)
             errors += converter.prescan(dump.get_curr_node());
 #else

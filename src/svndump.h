@@ -106,7 +106,7 @@ namespace SvnDump
         return rev_log;
       }
 
-      Node() : curr_txn(-1), text(NULL), text_allocated(false),
+      Node() : curr_txn(-1), text(nullptr), text_allocated(false),
                text_len(0), curr_rev(-1) {}
 
       Node(const Node& other) {
@@ -174,7 +174,7 @@ namespace SvnDump
           assert(text_len > 0);
           text = other.text;
 
-          other.text           = NULL;
+          other.text           = nullptr;
           other.text_allocated = false;
           other.text_len       = 0;
         }
@@ -191,7 +191,7 @@ namespace SvnDump
         if (text_allocated) {
           delete[] text;
           text_allocated = false;
-          text           = NULL;
+          text           = nullptr;
         }
         text_len = 0;
 
@@ -224,7 +224,7 @@ namespace SvnDump
         return *copy_from_rev;
       }
       bool has_text() const {
-        return text != NULL;
+        return text != nullptr;
       }
       const char * get_text() const {
         return text;
@@ -250,8 +250,8 @@ namespace SvnDump
     Node curr_node;
 
   public:
-    File() : curr_rev(-1), handle(NULL) {}
-    File(const filesystem::path& file) : curr_rev(-1), handle(NULL) {
+    File() : curr_rev(-1), handle(nullptr) {}
+    File(const filesystem::path& file) : curr_rev(-1), handle(nullptr) {
       open(file);
     }
     ~File() {
@@ -279,7 +279,7 @@ namespace SvnDump
     }
     void close() {
       delete handle;
-      handle = NULL;
+      handle = nullptr;
     }
 
     int get_rev_nr() const {

@@ -76,9 +76,15 @@ namespace Git {
  * Verify that the size of the tree in memory matches the size of the
  * Git tree on disk.
  */
-bool check_size(const Tree& tree)
+bool check_size(const Repository& repository, const Tree& tree)
 {
-  if (tree.written && tree.entries.size() != git_tree_entrycount(tree)) {
+  if (! tree.is_written())
+    return true;
+
+  git_tree * tree_obj;
+  git_check(git_tree_lookup(&tree_obj, repository, tree.get_oid()));
+
+  if (tree.written && tree.entries.size() != git_tree_entrycount(tree_obj)) {
 #ifdef DEBUG
     std::cerr << std::endl;
     std::cerr << "Mismatch in written entries for " << tree.name
@@ -101,8 +107,11 @@ bool check_size(const Tree& tree)
                 << std::endl;
     }
 #endif
+    git_tree_free(tree_obj);
     return false;
   }
+
+  git_tree_free(tree_obj);
   return true;
 }
 #endif
@@ -118,7 +127,7 @@ bool check_size(const Tree& tree)
 bool Tree::do_update(filesystem::path::iterator segment,
                      filesystem::path::iterator end, ObjectPtr obj)
 {
-  assert(check_size(*this));
+  assert(check_size(*repository, *this));
 
   std::string entry_name = (*segment).string();
 
@@ -131,8 +140,8 @@ bool Tree::do_update(filesystem::path::iterator segment,
 
       written = false;        // force the whole tree to be rewritten
     } else {
-      if (builder == NULL)
-        git_check(git_treebuilder_create(&builder, NULL));
+      if (builder == nullptr)
+        git_check(git_treebuilder_create(&builder, nullptr));
 
       // If the object we're updating is just a blob, the tree doesn't
       // need to be regnerated entirely, it will just get updated by
@@ -140,7 +149,7 @@ bool Tree::do_update(filesystem::path::iterator segment,
       if (written && obj->is_blob()) {
         ObjectPtr curr_obj((*i).second);
 
-        git_check(git_treebuilder_insert(NULL, builder, obj->name.c_str(),
+        git_check(git_treebuilder_insert(nullptr, builder, obj->name.c_str(),
                                          *obj, obj->attributes));
 
         if (entry_name != obj->name) {
@@ -176,7 +185,7 @@ bool Tree::do_update(filesystem::path::iterator segment,
     written = tree->do_update(segment, end, obj);
   }
 
-  assert(check_size(*this));
+  assert(check_size(*repository, *this));
 
   modified = true;
 
@@ -190,7 +199,7 @@ bool Tree::do_update(filesystem::path::iterator segment,
 void Tree::do_remove(filesystem::path::iterator segment,
                      filesystem::path::iterator end)
 {
-  assert(check_size(*this));
+  assert(check_size(*repository, *this));
 
   std::string entry_name = (*segment).string();
 
@@ -218,12 +227,12 @@ void Tree::do_remove(filesystem::path::iterator segment,
       entries.erase(del);
 
       if (written) {
-        assert(builder != NULL);
+        assert(builder != nullptr);
         git_check(git_treebuilder_remove(builder, entry_name.c_str()));
       }
     }
 
-    assert(check_size(*this));
+    assert(check_size(*repository, *this));
 
     modified = true;
   }
@@ -246,12 +255,12 @@ void Tree::write()
   if (written) {
     if (modified) {
       assert(! entries.empty());
-      assert(check_size(*this));
-      assert(builder != NULL);
+      assert(check_size(*repository, *this));
+      assert(builder != nullptr);
       git_check(git_treebuilder_write(&oid, *repository, builder));
     }
   } else {
-    assert(check_size(*this));
+    assert(check_size(*repository, *this));
 
     // `written' may be false now because of a change which requires us
     // to rewrite the entire tree.  To be on the safe side, just clear
@@ -260,7 +269,7 @@ void Tree::write()
     if (builder)
       git_treebuilder_clear(builder);
     else
-      git_check(git_treebuilder_create(&builder, NULL));
+      git_check(git_treebuilder_create(&builder, nullptr));
 
     for (entries_map::const_iterator i = entries.begin();
          i != entries.end();
@@ -271,13 +280,13 @@ void Tree::write()
       if (! obj->is_written())
         obj->write();
 
-      git_check(git_treebuilder_insert(NULL, builder, obj->name.c_str(), *obj,
+      git_check(git_treebuilder_insert(nullptr, builder, obj->name.c_str(), *obj,
                                        obj->attributes));
     }
 
-    assert(check_size(*this));
+    assert(check_size(*repository, *this));
     git_check(git_treebuilder_write(&oid, *repository, builder));
-    assert(check_size(*this));
+    assert(check_size(*repository, *this));
 
     written = true;
   }
@@ -323,7 +332,7 @@ void Commit::remove(const filesystem::path& pathname)
   if (tree) {
     tree->remove(pathname);
     if (tree->empty())
-       tree = NULL;
+       tree = nullptr;
   }
 }
 
@@ -363,16 +372,16 @@ void Commit::write()
     tree->write();
 
   git_tree * tree_obj;
-  git_check(git_tree_lookup(&tree_obj, *repository, &tree->oid));
+  git_check(git_tree_lookup(&tree_obj, *repository, tree->get_oid()));
 
-  git_commit * parent_obj = NULL;
+  git_commit * parent_obj = nullptr;
   if (parent) {
     assert(parent->is_written());
-    git_check(git_commit_lookup(&parent_obj, *repository, &parent->oid));
+    git_check(git_commit_lookup(&parent_obj, *repository, parent->get_oid()));
   }
 
-  git_check(git_commit_create_v(&oid, *repository, NULL, signature, signature,
-                                NULL, message_str.c_str(), tree_obj,
+  git_check(git_commit_create_v(&oid, *repository, nullptr, signature, signature,
+                                nullptr, message_str.c_str(), tree_obj,
                                 parent_obj ? 1 : 0, parent_obj));
 
   if (parent_obj)
@@ -380,7 +389,8 @@ void Commit::write()
   git_tree_free(tree_obj);
 
   // Once written, we no longer need the parent
-  parent = NULL;
+  parent = nullptr;
+  written = true;
 }
 
 /**
@@ -391,12 +401,14 @@ void Commit::write()
  * flushed.
  *
  * @param from_branch
- *   If from_branch is non-NULL, it means this branch is being created
+ *   If from_branch is non-nullptr, it means this branch is being created
  *   by copying a directory from a pre-existing branch.
  */
 CommitPtr Branch::get_commit(BranchPtr from_branch)
 {
   if (next_commit) {
+    assert(! repository->commit_queue.empty());
+
     std::vector<CommitPtr>::iterator i =
       std::find(repository->commit_queue.begin(),
                 repository->commit_queue.end(), next_commit);
@@ -408,7 +420,6 @@ CommitPtr Branch::get_commit(BranchPtr from_branch)
   }
 
   if (commit) {
-    assert(! from_branch);
     next_commit = commit->clone();
   } else {
     // If the first action is a dir/add/copyfrom, then this will get set
@@ -452,17 +463,17 @@ void Branch::update(CommitPtr ptr)
   assert(commit->is_written());
 
   git_check(git_reference_create_oid(&git_ref, *repository,
-                                     (std::string("refs/heads") + name).c_str(),
+                                     (std::string("refs/heads/") + name).c_str(),
                                      commit->get_oid(), 1));
 }
 
-BlobPtr Repository::create_blob(const std::string& name, const char * data,
+BlobPtr Repository::create_blob(const std::string& blob_name, const char * data,
                                 std::size_t len, unsigned int attributes)
 {
   git_oid blob_oid;
   git_check(git_blob_create_frombuffer(&blob_oid, *this, data, len));
 
-  Blob * blob = new Blob(this, &blob_oid, name, attributes);
+  Blob * blob = new Blob(this, &blob_oid, blob_name, attributes);
   blob->repository = this;
   return blob;
 }
@@ -470,14 +481,14 @@ BlobPtr Repository::create_blob(const std::string& name, const char * data,
 TreePtr Repository::create_tree(const std::string& name,
                                 unsigned int attributes)
 {
-  Tree * tree = new Tree(this, NULL, name, attributes);
+  Tree * tree = new Tree(this, nullptr, name, attributes);
   tree->repository = this;
   return tree;
 }
 
 CommitPtr Repository::create_commit(CommitPtr parent)
 {
-  return new Commit(this, NULL, parent);
+  return new Commit(this, nullptr, parent);
 }
 
 bool Repository::write(int related_revision)
@@ -488,37 +499,43 @@ bool Repository::write(int related_revision)
        i != commit_queue.end();
        ++i) {
     CommitPtr commit(*i);
+#if 0
     if (! commit->is_modified() && ! commit->is_new_branch()) {
+      assert(! commit->branch->next_commit);
       if (log.debug_mode()) {
         std::ostringstream buf;
         buf << "Commit had no Git-visible modifications";
         log.debug(buf.str());
       }
-      continue;
-    }
-
-    assert(commit == commit->branch->next_commit);
-    commit->branch->next_commit.reset();
-
-    if (commit->has_tree()) {
-      set_commit_info(commit);
-
-      // Only now does the commit get associated with its branch
-      commit->branch->commit = commit;
-
-      assert(! commit->is_written());
-      commit->write();
-
-      if (commit->branch->prefix.empty())
-        log.debug(std::string("Updated branch ") + commit->branch->name);
-      else
-        log.debug(std::string("Updated branch ") + commit->branch->name +
-                  " (prefix \"" + commit->branch->prefix.string() + "\")");
-
-      ++branches_modified;
     } else {
-      delete_branch(commit->branch, related_revision);
+#endif
+      assert(commit == commit->branch->next_commit);
+      commit->branch->next_commit.reset();
+
+      if (commit->has_tree()) {
+        set_commit_info(commit);
+
+        // Only now does the commit get associated with its branch
+        commit->branch->commit = commit;
+
+        assert(! commit->is_written());
+        commit->write();
+
+        if (log.debug_mode()) {
+          if (commit->branch->prefix.empty())
+            log.debug(std::string("Updated branch ") + commit->branch->name);
+          else
+            log.debug(std::string("Updated branch ") + commit->branch->name +
+                      " (prefix \"" + commit->branch->prefix.string() + "\")");
+        }
+
+        ++branches_modified;
+      } else {
+        delete_branch(commit->branch, related_revision);
+      }
+#if 0
     }
+#endif
   }
   commit_queue.clear();
 
@@ -540,13 +557,13 @@ BranchPtr Repository::find_branch_by_name(const std::string& name,
       branches_by_name.insert(branches_name_value(name, default_obj));
     if (! result.second) {
       log.warn(std::string("Branch name repeated: ") + name);
-      return NULL;
+      return nullptr;
     }
     return default_obj;
   }
 
   assert(false);
-  return NULL;
+  return nullptr;
 }
 
 /**
@@ -571,13 +588,13 @@ BranchPtr Repository::find_branch_by_path(const filesystem::path& pathname,
       branches_by_path.insert(branches_path_value(pathname, default_obj));
     if (! result.second) {
       log.warn(std::string("Branch path repeated: ") + pathname.string());
-      return NULL;
+      return nullptr;
     }
     return default_obj;
   }
 
   assert(false);
-  return NULL;
+  return nullptr;
 }
 
 void Repository::delete_branch(BranchPtr branch, int related_revision)
@@ -599,9 +616,9 @@ void Repository::delete_branch(BranchPtr branch, int related_revision)
     log.debug(std::string("Wrote tag ") + tag_name);
   }
 
-  branch->git_ref     = NULL;
-  branch->commit      = NULL;
-  branch->next_commit = NULL;
+  branch->git_ref     = nullptr;
+  branch->commit      = nullptr;
+  branch->next_commit = nullptr;
 }
 
 void Repository::write_branches()
@@ -636,10 +653,10 @@ void Repository::garbage_collect()
 
 void Repository::create_tag(CommitPtr commit, const std::string& name)
 {
-  assert(commit->signature != NULL);
+  assert(commit->signature != nullptr);
 
   git_commit * commit_obj;
-  git_check(git_commit_lookup(&commit_obj, *this, &commit->oid));
+  git_check(git_commit_lookup(&commit_obj, *this, commit->get_oid()));
 
   git_oid tag_oid;
   git_check(git_tag_create(&tag_oid, *this, name.c_str(),
