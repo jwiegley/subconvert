@@ -143,7 +143,7 @@ void ConvertRepository::set_commit_info(Git::CommitPtr commit)
     buf << std::string(*log, beg, len) << '\n'
         << '\n';
 
-  buf << "SVN-Revision: " << rev;
+  buf << "SVN-Revision: " << last_rev;
 #if 0
   // jww (2012-04-18): We also need a "super repository" that contains a
   // .gitmodules file which is updated every time a submodule is updated.
