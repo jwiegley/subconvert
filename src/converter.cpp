@@ -214,7 +214,6 @@ void ConvertRepository::update_object(Git::Repository *       repo,
   Git::BranchPtr branch(repo->find_branch_by_path(pathname));
   Git::CommitPtr branch_commit(branch->get_commit(from_branch));
 
-  if (! repo->repo_name.empty())
   status.info(debug_text + " <" + branch->name + ">" +
               (repo->repo_name.empty() ? "" :
                std::string(" {") + repo->repo_name + "}"));
