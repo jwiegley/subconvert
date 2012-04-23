@@ -228,7 +228,7 @@ void ConvertRepository::update_object(Git::Repository *       repo,
   else
     branch_commit->remove(subpath);
 
-  if (! submodules_map.empty()) {
+  if (! submodules_map.empty() && repo != repository) {
     // Add the change to any related submodule, according to
     // manifest.txt.  We actually add this to a branch in the current
     // repository for efficiency's sake, allowing it to be sifted out
@@ -251,37 +251,19 @@ ConvertRepository::describe_change(SvnDump::File::Node::Kind   kind,
                                    SvnDump::File::Node::Action action)
 {
   std::string desc;
-
   switch (action) {
-  case SvnDump::File::Node::ACTION_NONE:
-    desc = "NONE";
-    break;
-  case SvnDump::File::Node::ACTION_ADD:
-    desc = "ADD";
-    break;
-  case SvnDump::File::Node::ACTION_DELETE:
-    desc = "DELETE";
-    break;
-  case SvnDump::File::Node::ACTION_CHANGE:
-    desc = "CHANGE";
-    break;
-  case SvnDump::File::Node::ACTION_REPLACE:
-    desc = "REPLACE";
-    break;
+  case SvnDump::File::Node::ACTION_NONE:    desc = "NONE";    break;
+  case SvnDump::File::Node::ACTION_ADD:     desc = "ADD";     break;
+  case SvnDump::File::Node::ACTION_DELETE:  desc = "DELETE";  break;
+  case SvnDump::File::Node::ACTION_CHANGE:  desc = "CHANGE";  break;
+  case SvnDump::File::Node::ACTION_REPLACE: desc = "REPLACE"; break;
   }
 
   desc += " ";
-
   switch (kind) {
-  case SvnDump::File::Node::KIND_NONE:
-    desc += "NONE";
-    break;
-  case SvnDump::File::Node::KIND_FILE:
-    desc += "FILE";
-    break;
-  case SvnDump::File::Node::KIND_DIR:
-    desc += "DIR";
-    break;
+  case SvnDump::File::Node::KIND_NONE: desc += "NONE"; break;
+  case SvnDump::File::Node::KIND_FILE: desc += "FILE"; break;
+  case SvnDump::File::Node::KIND_DIR:  desc += "DIR";  break;
   }
 
   return desc;
