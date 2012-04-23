@@ -173,6 +173,7 @@ jczerk	John Czerkowicz	jczerk<>earthlink~net
 jdmoore99	John D~ Moore	jdmoore99<>users~sourceforge~net
 jefffaust	Jeffrey Faust	jeff<>opticalres~com
 jeffflinn	Jeff Flinn	TriumphSprint2000<>hotmail~com
+jeffrey.hellrung	Jeffrey Hellrung	jeffrey_unknown<>boost~org
 jeremypack	Jeremy Pack	oryol<>google~com
 jerrydy	Jerry Dy	jd2419<>sbc~com
 jesse	Jesse Williamson	jesse<>mind~net
