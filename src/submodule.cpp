@@ -47,6 +47,21 @@ Submodule::Submodule(std::string _pathname, ConvertRepository& _parent)
                         parent.status, function<void(Git::CommitPtr)>
                         (bind(&ConvertRepository::set_commit_info, &parent, _1)));
   repository->repo_name = pathname;
+
+  // Copy all of the main repository's branches into the submodule,
+  // which acts like a mirror for a targeted subset of that main
+  // repository, we just won't know for which branches until the end.
+  for (Git::Repository::branches_name_map::iterator
+         i = parent.repository->branches_by_name.begin();
+       i != parent.repository->branches_by_name.end();
+       ++i) {
+    Git::BranchPtr branch(new Git::Branch(repository));
+
+    branch->name   = (*i).second->name;
+    branch->prefix = (*i).second->prefix;
+
+    repository->find_branch_by_name(branch->name, branch);
+  }
 }
 
 int Submodule::load_modules(const filesystem::path& modules_file,
@@ -71,14 +86,15 @@ int Submodule::load_modules(const filesystem::path& modules_file,
       continue;
     }
     else if (linebuf[0] == '[') {
-      curr_module =
-        new Submodule(std::string(linebuf, 1, std::strlen(linebuf) - 2),
-                      parent);
-      parent.submodules_list.push_back(curr_module);
+      std::string module_name(linebuf, 1, std::strlen(linebuf) - 2);
+      if (module_name != "<ignore>") {
+        curr_module = new Submodule(module_name, parent);
+        parent.submodules_list.push_back(curr_module);
+      }
     }
     else if (const char * p = std::strchr(linebuf, ':')) {
       if (curr_module) {
-        std::string target_path =
+        std::string source_path =
           std::string(linebuf, 0,
                       static_cast<std::string::size_type>(p - linebuf));
 
@@ -86,15 +102,22 @@ int Submodule::load_modules(const filesystem::path& modules_file,
         while (std::isspace(*p))
           ++p;
 
-        std::string source_path = std::string(p);
-        if (source_path == ".")
-          source_path = target_path;
+        std::string target_path = std::string(p);
+        if (target_path == ".")
+          target_path = "";
 
         if (source_path != "<ignore>") {
+          if (source_path[source_path.length() - 1] == '/')
+            source_path = std::string(source_path, 0, source_path.length() - 1);
+
+          if (target_path[target_path.length() - 1] == '/')
+            target_path = std::string(target_path, 0, target_path.length() - 1);
+
           std::pair<ConvertRepository::submodules_map_t::iterator,
                     bool> result = parent.submodules_map.insert
             (ConvertRepository::submodules_map_t::value_type
              (source_path, std::make_pair(target_path, curr_module)));
+
           if (! result.second)
             std::cerr << "Failed to load from "
                       << modules_file.string() << ": "

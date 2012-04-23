@@ -128,7 +128,8 @@ namespace Git
       return written;
     }
 
-    virtual ObjectPtr copy_to_name(const std::string& to_name) = 0;
+    virtual ObjectPtr copy_to_name(const std::string& to_name,
+                                   bool always_copy = false) = 0;
 
     virtual void write() {}
 
@@ -166,8 +167,9 @@ namespace Git
          unsigned int attributes = 0100644)
       : Object(repository, _oid, name, attributes) {}
 
-    virtual ObjectPtr copy_to_name(const std::string& to_name) {
-      if (name == to_name)
+    virtual ObjectPtr copy_to_name(const std::string& to_name,
+                                   bool always_copy = false) {
+      if (name == to_name && ! always_copy)
         return this;
       else
         return new Blob(repository, &oid, to_name, attributes);
@@ -260,7 +262,7 @@ namespace Git
     virtual TreePtr copy() {
       return new Tree(*this);
     }
-    virtual ObjectPtr copy_to_name(const std::string& to_name) {
+    virtual ObjectPtr copy_to_name(const std::string& to_name, bool = false) {
       TreePtr new_tree(copy());
       new_tree->name = to_name;
       return new_tree;
@@ -350,7 +352,7 @@ namespace Git
       tree = _tree;
     }
 
-    virtual ObjectPtr copy_to_name(const std::string& to_name) {
+    virtual ObjectPtr copy_to_name(const std::string& to_name, bool = false) {
       CommitPtr new_commit(clone(true));
       new_commit->name = to_name;
       return new_commit;

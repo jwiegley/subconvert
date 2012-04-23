@@ -523,10 +523,14 @@ bool Repository::write(int related_revision)
 
         if (log.debug_mode()) {
           if (commit->branch->prefix.empty())
-            log.debug(std::string("Updated branch ") + commit->branch->name);
+            log.debug(std::string("Updated branch ") + commit->branch->name +
+                      (repo_name.empty() ? "" :
+                       std::string(" {") + repo_name + "}"));
           else
             log.debug(std::string("Updated branch ") + commit->branch->name +
-                      " (prefix \"" + commit->branch->prefix.string() + "\")");
+                      " (prefix \"" + commit->branch->prefix.string() + "\")" +
+                      (repo_name.empty() ? "" :
+                       std::string(" {") + repo_name + "}"));
         }
 
         ++branches_modified;
@@ -593,7 +597,8 @@ BranchPtr Repository::find_branch_by_path(const filesystem::path& pathname,
     return default_obj;
   }
 
-  assert(false);
+  log.error(std::string("Failed to find a branch for: ") + pathname.string());
+
   return nullptr;
 }
 
@@ -631,24 +636,41 @@ void Repository::write_branches()
     if ((*i).second->commit) {
       if ((*i).second->is_tag) {
         create_tag((*i).second->commit, (*i).second->name);
-        log.info(std::string("Wrote tag ") + (*i).second->name);
+        log.info(std::string("Wrote tag ") + (*i).second->name +
+                 (repo_name.empty() ? "" :
+                  std::string(" {") + repo_name + "}"));
       } else {
         (*i).second->update();
-        log.info(std::string("Wrote branch ") + (*i).second->name);
+        log.info(std::string("Wrote branch ") + (*i).second->name +
+                 (repo_name.empty() ? "" :
+                  std::string(" {") + repo_name + "}"));
       }
     } else {
-      log.debug(std::string("Branch ") + (*i).second->name + " is empty");
+      log.debug(std::string("Branch ") + (*i).second->name + " is empty" +
+                (repo_name.empty() ? "" :
+                 std::string(" {") + repo_name + "}"));
     }
   }
 }
 
 void Repository::garbage_collect()
 {
-  std::system("git config gc.autopacklimit 0");
-  std::system("git config loose.compression 0");
+  if (repo_name.empty()) {
+    std::system("git config gc.autopacklimit 0");
+    std::system("git config loose.compression 0");
 
-  log.newline();
-  std::system("git gc");
+    log.newline();
+    std::system("git gc");
+  } else {
+    std::system((std::string("git --git-dir=\"") + repo_name +
+                 "\" config gc.autopacklimit 0").c_str());
+    std::system((std::string("git --git-dir=\"") + repo_name +
+                 "\" config loose.compression 0").c_str());
+
+    log.newline();
+    std::system((std::string("git --git-dir=\"") + repo_name +
+                 "\" gc").c_str());
+  }
 }
 
 void Repository::create_tag(CommitPtr commit, const std::string& name)

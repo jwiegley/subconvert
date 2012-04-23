@@ -83,6 +83,11 @@ struct ConvertRepository
 #endif
     if (signature)
       git_signature_free(signature);
+
+    for (submodules_list_t::iterator i = submodules_list.begin();
+         i != submodules_list.end();
+         ++i)
+      checked_delete(*i);
   }
 
   void         free_past_trees();
@@ -94,20 +99,35 @@ struct ConvertRepository
   std::pair<filesystem::path, Submodule *>
   find_submodule(const filesystem::path& pathname);
 
+  Git::BranchPtr find_branch(Git::Repository *       repo,
+                             const filesystem::path& pathname,
+                             Git::BranchPtr          related_branch = nullptr);
+
   void update_object(Git::Repository *       repo,
                      const filesystem::path& pathname,
-                     Git::ObjectPtr          obj         = nullptr,
-                     Git::BranchPtr          from_branch = nullptr,
-                     std::string             debug_text  = "");
+                     Git::ObjectPtr          obj            = nullptr,
+                     Git::BranchPtr          from_branch    = nullptr,
+                     Git::BranchPtr          related_branch = nullptr,
+                     std::string             debug_text     = "");
 
-  void        process_change(Git::Repository * repo,
-                             const filesystem::path& pathname);
+  void process_change(Git::Repository *       repo,
+                      const filesystem::path& pathname,
+                      Git::BranchPtr          related_branch = nullptr);
+
   std::string describe_change(SvnDump::File::Node::Kind   kind,
                               SvnDump::File::Node::Action action);
 
-  bool add_file(Git::Repository * repo, const filesystem::path& pathname);
-  bool add_directory(Git::Repository * repo, const filesystem::path& pathname);
-  bool delete_item(Git::Repository * repo, const filesystem::path& pathname);
+  bool add_file(Git::Repository *       repo,
+                const filesystem::path& pathname,
+                Git::BranchPtr          related_branch = nullptr);
+
+  bool add_directory(Git::Repository *       repo,
+                     const filesystem::path& pathname,
+                     Git::BranchPtr          related_branch = nullptr);
+
+  bool delete_item(Git::Repository *       repo,
+                   const filesystem::path& pathname,
+                   Git::BranchPtr          related_branch = nullptr);
 
   int  prescan(SvnDump::File::Node& node);
   void operator()(SvnDump::File::Node& node);
