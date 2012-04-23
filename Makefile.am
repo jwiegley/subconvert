@@ -6,18 +6,21 @@ DISTCLEANFILES	= .timestamp
 
 bin_PROGRAMS	= subconvert
 
-subconvert_CXXFLAGS = -Weverything -Wno-padded -Wno-weak-vtables		\
-		      -Wno-exit-time-destructors -Wno-global-constructors	\
-		      -Wno-missing-prototypes -Wno-missing-noreturn             \
-		      -Wno-disabled-macro-expansion -fno-limit-debug-info       \
-		      -Wno-switch-enum -Wno-header-hygiene -Wno-c++98-compat    \
-		      -std=c++11
-#subconvert_CXXFLAGS = -ansi -pedantic -pedantic-errors -Wall -Winvalid-pch	\
-#		      -Wextra -Wcast-align -Wcast-qual -Wfloat-equal		\
-#		      -Wmissing-field-initializers -Wno-endif-labels		\
-#		      -Woverloaded-virtual -Wsign-compare -Wsign-promo		\
-#		      -Wwrite-strings -Wno-old-style-cast -Wno-deprecated	\
-#	              -Wno-strict-aliasing -Werror
+subconvert_CXXFLAGS = -std=c++11 -Wno-c++98-compat
+#subconvert_CXXFLAGS = -std=c++11 -Wno-c++98-compat -stdlib=libc++
+#subconvert_LDFLAGS = -stdlib=libc++
+
+subconvert_CXXFLAGS += -Weverything -Wno-padded -Wno-weak-vtables		\
+		       -Wno-exit-time-destructors -Wno-global-constructors	\
+		       -Wno-missing-prototypes -Wno-missing-noreturn            \
+		       -Wno-disabled-macro-expansion -fno-limit-debug-info      \
+		       -Wno-switch-enum -Wno-header-hygiene
+#subconvert_CXXFLAGS += -ansi -pedantic -pedantic-errors -Wall -Winvalid-pch	\
+#		       -Wextra -Wcast-align -Wcast-qual -Wfloat-equal		\
+#		       -Wmissing-field-initializers -Wno-endif-labels		\
+#		       -Woverloaded-virtual -Wsign-compare -Wsign-promo		\
+#		       -Wwrite-strings -Wno-old-style-cast -Wno-deprecated	\
+#	               -Wno-strict-aliasing -Werror
 
 subconvert_SOURCES  = src/svndump.cpp		\
 		      src/gitutil.cpp		\
