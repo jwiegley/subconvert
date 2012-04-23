@@ -91,7 +91,7 @@ namespace Git
     unsigned int attributes;
     bool         written;
 
-    Object(RepositoryPtr _repository, git_oid * _oid,
+    Object(RepositoryPtr _repository, const git_oid * _oid,
            const std::string& _name = "", unsigned int _attributes = 0)
       : repository(_repository), refc(0), name(_name),
         attributes(_attributes), written(_oid != nullptr) {
@@ -163,8 +163,8 @@ namespace Git
   class Blob : public Object
   {
   public:
-    Blob(RepositoryPtr repository, git_oid * _oid, const std::string& name,
-         unsigned int attributes = 0100644)
+    Blob(RepositoryPtr repository, const git_oid * _oid,
+         const std::string& name, unsigned int attributes = 0100644)
       : Object(repository, _oid, name, attributes) {}
 
     virtual ObjectPtr copy_to_name(const std::string& to_name,
@@ -231,7 +231,7 @@ namespace Git
                    filesystem::path::iterator end);
 
   public:
-    Tree(RepositoryPtr repository, git_oid * _oid,
+    Tree(RepositoryPtr repository, const git_oid * _oid,
          const std::string& name, unsigned int attributes = 0040000)
       : Object(repository, _oid, name, attributes), builder(nullptr),
         modified(false) {}
@@ -321,7 +321,7 @@ namespace Git
     git_signature * signature;
     bool            signature_allocated;
 
-    Commit(RepositoryPtr repo, git_oid * _oid, CommitPtr _parent = nullptr,
+    Commit(RepositoryPtr repo, const git_oid * _oid, CommitPtr _parent = nullptr,
            const std::string& name = "", unsigned int attributes = 0040000)
       : Object(repo, _oid, name, attributes), parent(_parent),
         new_branch(false), signature(nullptr), signature_allocated(false) {}

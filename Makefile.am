@@ -4,9 +4,10 @@ DISTCLEANFILES	= .timestamp
 
 ######################################################################
 
-bin_PROGRAMS	= subconvert
+bin_PROGRAMS	= subconvert git-monitor
 
 subconvert_CXXFLAGS = -std=c++11 -Wno-c++98-compat
+git_monitor_CXXFLAGS = -std=c++11 -Wno-c++98-compat
 #subconvert_CXXFLAGS = -std=c++11 -Wno-c++98-compat -stdlib=libc++
 #subconvert_LDFLAGS = -stdlib=libc++
 
@@ -22,13 +23,13 @@ subconvert_CXXFLAGS += -Weverything -Wno-padded -Wno-weak-vtables		\
 #		       -Wwrite-strings -Wno-old-style-cast -Wno-deprecated	\
 #	               -Wno-strict-aliasing -Werror
 
-subconvert_SOURCES  = src/svndump.cpp		\
-		      src/gitutil.cpp		\
-		      src/authors.cpp		\
-		      src/branches.cpp		\
-		      src/converter.cpp		\
-		      src/submodule.cpp		\
-		      src/main.cpp
+git_monitor_CXXFLAGS += -Weverything -Wno-padded -Wno-weak-vtables		\
+		        -Wno-exit-time-destructors -Wno-global-constructors	\
+		        -Wno-missing-prototypes -Wno-missing-noreturn           \
+		        -Wno-disabled-macro-expansion -fno-limit-debug-info     \
+		        -Wno-switch-enum -Wno-header-hygiene
+
+git_monitor_SOURCES  = src/gitutil.cpp src/git-monitor.cpp
 
 pkginclude_HEADERS = src/svndump.h		\
 		     src/gitutil.h		\
@@ -39,6 +40,7 @@ pkginclude_HEADERS = src/svndump.h		\
 		     src/status.h
 
 nodist_subconvert_SOURCES = system.hpp
+nodist_git_monitor_SOURCES = system.hpp
 
 BUILT_SOURCES = system.hpp
 CLEANFILES    = system.hpp
@@ -48,6 +50,7 @@ system.hpp: src/system.hpp.in
 
 if USE_PCH
 nodist_subconvert_SOURCES += system.hpp.gch
+nodist_git_monitor_SOURCES += system.hpp.gch
 
 BUILT_SOURCES += system.hpp.gch
 CLEANFILES    += system.hpp.gch
