@@ -64,6 +64,8 @@ struct ConvertRepository
   Git::BranchPtr        history_branch;
   submodules_list_t     submodules_list;
   submodules_map_t      submodules_map;
+  git_signature *       signature;
+  std::string           commit_log;
 
   ConvertRepository(const filesystem::path& pathname,
                     StatusDisplay&          _status,
@@ -72,17 +74,21 @@ struct ConvertRepository
       repository(new Git::Repository
                  (pathname, status,
                   bind(&ConvertRepository::set_commit_info, this, _1))),
-      history_branch(new Git::Branch(repository, "flat-history", true)) {}
+      history_branch(new Git::Branch(repository, "flat-history", true)),
+      signature(nullptr) {}
 
   ~ConvertRepository() {
 #ifdef ASSERTS
     checked_delete(repository);
 #endif
+    if (signature)
+      git_signature_free(signature);
   }
 
   void         free_past_trees();
   Git::TreePtr get_past_tree();
 
+  void establish_commit_info();
   void set_commit_info(Git::CommitPtr commit);
 
   std::pair<filesystem::path, Submodule *>
