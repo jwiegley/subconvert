@@ -227,6 +227,23 @@ void ConvertRepository::update_object(Git::Repository *       repo,
     branch_commit->update(subpath, obj);
   else
     branch_commit->remove(subpath);
+
+  if (! submodules_map.empty()) {
+    // Add the change to any related submodule, according to
+    // manifest.txt.  We actually add this to a branch in the current
+    // repository for efficiency's sake, allowing it to be sifted out
+    // using git-filter-branch afterward.
+    Submodule *      submodule;
+    filesystem::path submodule_path;
+
+    std::tr1::tie(submodule_path, submodule) = find_submodule(subpath);
+
+    if (submodule) {
+      std::cerr << "  --> matched to submodule " << submodule->pathname
+                << std::endl;
+      process_change(submodule->repository, submodule_path);
+    }
+  }
 }
 
 std::string
@@ -483,22 +500,6 @@ void ConvertRepository::operator()(SvnDump::File::Node& _node)
     }
 
     process_change(repository, pathname);
-
-    if (! submodules_map.empty()) {
-      // Add the change to any related submodule, according to
-      // manifest.txt.  We actually add this to a branch in the current
-      // repository for efficiency's sake, allowing it to be sifted out
-      // using git-filter-branch afterward.
-      Submodule *      submodule;
-      filesystem::path subpath;
-      std::tr1::tie(subpath, submodule) = find_submodule(pathname);
-
-      if (submodule) {
-        std::cerr << "  --> matched to submodule " << submodule->pathname
-                  << std::endl;
-        process_change(submodule->repository, subpath);
-      }
-    }
   }
 }
 
