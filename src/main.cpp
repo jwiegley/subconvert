@@ -368,6 +368,8 @@ int main(int argc, char *argv[])
           break;
         if (start == -1 || rev >= start)
           converter(dump.get_curr_node());
+        else
+          status.update(rev);
 #else
         converter(node);
 #endif
