@@ -51,8 +51,8 @@ int main(int argc, char *argv[])
   Git::CommitPtr  commit(new Git::Commit(&repo, nullptr));
 
   vector<string> refs;
-  refs.push_back("refs/heads/snapshots");
   refs.push_back("HEAD");
+  refs.push_back("refs/heads/snapshots");
 
   for (auto refname : refs) {
     git_reference * ref;
@@ -79,17 +79,17 @@ int main(int argc, char *argv[])
       if (! fs::is_regular_file(pathname))
         continue;
 
-      status.debug(std::string("Considering regular file ") +
-                   pathname.string());
-
       // jww (2012-04-23): Need to ignore the files referenced by
       // .gitignore, .git/info/exclude, and the global gitignore rules
       if (*pathname.begin() == ".git")
         continue;
 
+      status.debug(std::string("Considering regular file ") +
+                   pathname.string());
+
       time_t when = fs::last_write_time(pathname);
       if (when > previous_write_time) {
-        status.info(std::string("Updating snapshot for") + pathname.string());
+        status.info(std::string("Updating snapshot for ") + pathname.string());
 
         git_oid blob_oid;
         git_blob_create_fromfile(&blob_oid, repo, pathname.string().c_str());
