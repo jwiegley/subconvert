@@ -39,6 +39,32 @@ using namespace std;
 using namespace boost;
 namespace fs = filesystem;
 
+namespace {
+  void read_submodules_file(const fs::path& pathname, vector<string>& entries) {
+    static const int MAX_LINE = 1024;
+    char linebuf[MAX_LINE + 1];
+
+    filesystem::ifstream in(pathname);
+
+    while (in.good() && ! in.eof()) {
+      in.getline(linebuf, MAX_LINE);
+      if (linebuf[0] == '#')
+        continue;
+
+      if (starts_with(linebuf, "\tpath = "))
+        entries.push_back(string(&linebuf[8]) + "/");
+    }
+  }
+
+  bool is_ignored_file(const fs::path& pathname, const vector<string>& entries) {
+    for (const string& entry : entries) {
+      if (starts_with(pathname.string(), entry))
+        return true;
+    }
+    return false;
+  }
+}
+
 int main(int argc, char *argv[])
 {
   ios::sync_with_stdio(false);
@@ -111,11 +137,26 @@ int main(int argc, char *argv[])
     }
   }
 
+  vector<string> ignore_list;
+  time_t         ignore_mtime(0);
+
   time_t latest_write_time(0);
 
   while (true) {
     time_t      previous_write_time(latest_write_time);
     size_t updated = 0;
+
+#define UPD_IGN_LIST(pathvar, listvar, timevar)                 \
+    if (fs::is_regular_file(pathvar)) {                         \
+      time_t timevar ## now(fs::last_write_time(pathvar));      \
+      if (timevar ## now != timevar) {                          \
+        (listvar).clear();                                      \
+        read_submodules_file((pathvar), (listvar));             \
+        timevar = timevar ## now;                               \
+      }                                                         \
+    }
+
+    UPD_IGN_LIST(".gitmodules", ignore_list, ignore_mtime);
 
     for (fs::recursive_directory_iterator end, entry("./"); 
          entry != end;
@@ -142,6 +183,11 @@ int main(int argc, char *argv[])
           (git_status_should_ignore(repo, subpath.string().c_str(), &ignored));
         if (ignored)
           break;
+
+        if (is_ignored_file(subpath, ignore_list)) {
+          ignored = 1;
+          break;
+        }
       }
       if (ignored) {
         status.debug(string("Ignoring ") + path_str);
