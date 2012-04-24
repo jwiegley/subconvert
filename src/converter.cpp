@@ -257,7 +257,11 @@ void ConvertRepository::update_object(Git::Repository *       repo,
     Submodule *      submodule;
     filesystem::path submodule_path;
 
+#if defined(_LIBCPP_VERSION)
+    std::tie(submodule_path, submodule) = find_submodule(subpath);
+#else
     std::tr1::tie(submodule_path, submodule) = find_submodule(subpath);
+#endif
 
     if (submodule) {
       std::cerr << "  ==> matched to submodule " << submodule->pathname

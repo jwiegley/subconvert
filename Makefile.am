@@ -13,9 +13,9 @@ git_monitor_CXXFLAGS = -std=c++11 -Wno-c++98-compat
 
 subconvert_CXXFLAGS += -Weverything -Wno-padded -Wno-weak-vtables		\
 		       -Wno-exit-time-destructors -Wno-global-constructors	\
-		       -Wno-missing-prototypes -Wno-missing-noreturn            \
-		       -Wno-disabled-macro-expansion -fno-limit-debug-info      \
-		       -Wno-switch-enum -Wno-header-hygiene
+		       -Wno-missing-prototypes -Wno-missing-noreturn		\
+		       -Wno-switch-enum -Wno-header-hygiene			\
+		       -fno-limit-debug-info
 #subconvert_CXXFLAGS += -ansi -pedantic -pedantic-errors -Wall -Winvalid-pch	\
 #		       -Wextra -Wcast-align -Wcast-qual -Wfloat-equal		\
 #		       -Wmissing-field-initializers -Wno-endif-labels		\
@@ -25,9 +25,13 @@ subconvert_CXXFLAGS += -Weverything -Wno-padded -Wno-weak-vtables		\
 
 git_monitor_CXXFLAGS += -Weverything -Wno-padded -Wno-weak-vtables		\
 		        -Wno-exit-time-destructors -Wno-global-constructors	\
-		        -Wno-missing-prototypes -Wno-missing-noreturn           \
-		        -Wno-disabled-macro-expansion -fno-limit-debug-info     \
-		        -Wno-switch-enum -Wno-header-hygiene
+		        -Wno-missing-prototypes -Wno-missing-noreturn		\
+		        -Wno-switch-enum -Wno-header-hygiene			\
+		        -fno-limit-debug-info
+
+subconvert_SOURCES = src/authors.cpp src/branches.cpp src/converter.cpp	\
+		     src/gitutil.cpp src/main.cpp src/submodule.cpp	\
+		     src/svndump.cpp
 
 git_monitor_SOURCES  = src/gitutil.cpp src/git-monitor.cpp
 

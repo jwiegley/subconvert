@@ -40,7 +40,11 @@
 #include <iostream>
 #include <sstream>
 #include <utility>
+#if defined(_LIBCPP_VERSION)
+#include <tuple>
+#else
 #include <tr1/tuple>
+#endif
 
 #include <ctime>
 
