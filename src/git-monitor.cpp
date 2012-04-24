@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
   time_t latest_write_time(0);
 
   while (true) {
-    time_t      previous_write_time(latest_write_time);
+    time_t previous_write_time(latest_write_time);
     size_t updated = 0;
 
 #define UPD_IGN_LIST(pathvar, listvar, timevar)                 \
@@ -158,6 +158,8 @@ int main(int argc, char *argv[])
 
     UPD_IGN_LIST(".gitmodules", ignore_list, ignore_mtime);
 
+    string last_ignored;
+
     for (fs::recursive_directory_iterator end, entry("./"); 
          entry != end;
          ++entry) {
@@ -167,7 +169,8 @@ int main(int argc, char *argv[])
 
       const string& path_str(pathname.string());
 
-      if (*pathname.begin() == ".git" || contains(path_str, "/.git/"))
+      if (*pathname.begin() == ".git" || contains(path_str, "/.git/") ||
+          (! last_ignored.empty() && starts_with(path_str, last_ignored)))
         continue;
 
       vector<fs::path> paths;
@@ -181,10 +184,13 @@ int main(int argc, char *argv[])
       for (const fs::path& subpath : paths) {
         Git::git_check
           (git_status_should_ignore(repo, subpath.string().c_str(), &ignored));
-        if (ignored)
+        if (ignored) {
+          last_ignored = subpath.string() + "/";
           break;
+        }
 
         if (is_ignored_file(subpath, ignore_list)) {
+          last_ignored = subpath.string() + "/";
           ignored = 1;
           break;
         }
