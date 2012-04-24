@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 {
   ios::sync_with_stdio(false);
 
-  size_t interval = 60;
+  size_t interval = 300;
 
   Options opts;
   vector<string> args;
