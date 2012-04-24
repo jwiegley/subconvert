@@ -318,20 +318,12 @@ namespace Git
     bool        new_branch;
     std::string message_str;
 
-    git_signature * signature;
-    bool            signature_allocated;
+    shared_ptr<git_signature> signature;
 
     Commit(RepositoryPtr repo, const git_oid * _oid, CommitPtr _parent = nullptr,
            const std::string& name = "", unsigned int attributes = 0040000)
       : Object(repo, _oid, name, attributes), parent(_parent),
-        new_branch(false), signature(nullptr), signature_allocated(false) {}
-
-    virtual ~Commit() {
-      if (signature_allocated) {
-        assert(signature);
-        git_signature_free(signature);
-      }
-    }
+        new_branch(false) {}
 
     virtual bool is_blob() const {
       return false;
@@ -372,10 +364,11 @@ namespace Git
                     time_t time) {
       assert(! name.empty());
       assert(! email.empty());
-      assert(! signature && ! signature_allocated);
-      git_check(git_signature_new(&signature, name.c_str(), email.c_str(),
-                                  time, 0));
-      signature_allocated = true;
+
+      git_signature * sig;
+      git_check(git_signature_new(&sig, name.c_str(), email.c_str(), time, 0));
+
+      signature = shared_ptr<git_signature>(sig, git_signature_free);
     }
 
     ObjectPtr lookup(const filesystem::path& pathname) {

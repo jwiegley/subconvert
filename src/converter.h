@@ -52,20 +52,20 @@ struct ConvertRepository
                    std::pair<filesystem::path,
                              Submodule *> > submodules_map_t;
 
-  SvnDump::File::Node * node;
-  StatusDisplay&        status;
-  Options               opts;
-  Authors               authors;
-  int                   rev;
-  int                   last_rev;
-  rev_trees_map         rev_trees;
-  copy_from_list        copy_from;
-  Git::Repository *     repository; // let it leak!
-  Git::BranchPtr        history_branch;
-  submodules_list_t     submodules_list;
-  submodules_map_t      submodules_map;
-  git_signature *       signature;
-  std::string           commit_log;
+  SvnDump::File::Node *     node;
+  StatusDisplay&            status;
+  Options                   opts;
+  Authors                   authors;
+  int                       rev;
+  int                       last_rev;
+  rev_trees_map             rev_trees;
+  copy_from_list            copy_from;
+  Git::Repository *         repository; // let it leak!
+  Git::BranchPtr            history_branch;
+  submodules_list_t         submodules_list;
+  submodules_map_t          submodules_map;
+  std::string               commit_log;
+  shared_ptr<git_signature> signature;
 
   ConvertRepository(const filesystem::path& pathname,
                     StatusDisplay&          _status,
@@ -74,16 +74,12 @@ struct ConvertRepository
       repository(new Git::Repository
                  (pathname, status,
                   bind(&ConvertRepository::set_commit_info, this, _1))),
-      history_branch(new Git::Branch(repository, "flat-history", true)),
-      signature(nullptr) {}
+      history_branch(new Git::Branch(repository, "flat-history", true)) {}
 
   ~ConvertRepository() {
 #ifdef ASSERTS
     checked_delete(repository);
 #endif
-    if (signature)
-      git_signature_free(signature);
-
     for (submodules_list_t::iterator i = submodules_list.begin();
          i != submodules_list.end();
          ++i)

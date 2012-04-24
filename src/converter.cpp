@@ -115,29 +115,24 @@ Git::TreePtr ConvertRepository::get_past_tree()
 
 void ConvertRepository::establish_commit_info()
 {
-  if (signature) {
-    git_signature_free(signature);
-    signature = nullptr;
-  }
-
   // Setup the author and commit comment
   std::string author_id(node->get_rev_author());
   if (author_id.empty())
     return;
 
+  git_signature * sig;
   Authors::authors_map::iterator author = authors.authors.find(author_id);
   if (author != authors.authors.end()) {
-    Git::git_check(git_signature_new(&signature,
-                                     (*author).second.name.c_str(),
+    Git::git_check(git_signature_new(&sig, (*author).second.name.c_str(),
                                      (*author).second.email.c_str(),
                                      node->get_rev_date(), 0));
   } else {
     status.warn(std::string("Unrecognized author id: ") + author_id);
-    Git::git_check(git_signature_new(&signature,
-                                     author_id.c_str(),
+    Git::git_check(git_signature_new(&sig, author_id.c_str(),
                                      "unknown@unknown.org",
                                      node->get_rev_date(), 0));
   }
+  signature = shared_ptr<git_signature>(sig, git_signature_free);
 
   optional<std::string> log(node->get_rev_log());
   std::string::size_type beg = 0;
@@ -170,10 +165,8 @@ void ConvertRepository::establish_commit_info()
 
 void ConvertRepository::set_commit_info(Git::CommitPtr commit)
 {
-  if (! commit->signature) {
-    commit->signature = signature;
-    commit->set_message(commit_log);
-  }
+  commit->signature = signature;
+  commit->set_message(commit_log);
 }
 
 std::pair<filesystem::path, Submodule *>

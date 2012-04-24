@@ -380,16 +380,16 @@ void Commit::write()
     git_check(git_commit_lookup(&parent_obj, *repository, parent->get_oid()));
   }
 
-  git_check(git_commit_create_v(&oid, *repository, nullptr, signature, signature,
-                                nullptr, message_str.c_str(), tree_obj,
-                                parent_obj ? 1 : 0, parent_obj));
+  git_check(git_commit_create_v(&oid, *repository, nullptr, signature.get(),
+                                signature.get(), nullptr, message_str.c_str(),
+                                tree_obj, parent_obj ? 1 : 0, parent_obj));
 
   if (parent_obj)
     git_commit_free(parent_obj);
   git_tree_free(tree_obj);
 
   // Once written, we no longer need the parent
-  parent = nullptr;
+  parent  = nullptr;
   written = true;
 }
 
@@ -613,12 +613,13 @@ void Repository::delete_branch(BranchPtr branch, int related_revision)
   }
 
   if (branch->commit) {
-    // If the branch is to be deleted, tag the last commit on
-    // that branch with a special FOO__deleted_rXXXX name so the
-    // history is preserved.
+    // If the branch is to be deleted, tag the last commit on that
+    // branch with a special FOO__deleted_rXXXX name so the history is
+    // preserved.
     std::ostringstream buf;
     buf << branch->name << "__deleted_r" << related_revision;
     std::string tag_name(buf.str());
+
     create_tag(branch->commit, tag_name);
     log.debug(std::string("Wrote tag ") + tag_name);
   }
@@ -677,15 +678,13 @@ void Repository::garbage_collect()
 
 void Repository::create_tag(CommitPtr commit, const std::string& name)
 {
-  assert(commit->signature != nullptr);
-
   git_commit * commit_obj;
   git_check(git_commit_lookup(&commit_obj, *this, commit->get_oid()));
 
   git_oid tag_oid;
   git_check(git_tag_create(&tag_oid, *this, name.c_str(),
                            reinterpret_cast<git_object *>(commit_obj),
-                           commit->signature, "", 1));
+                           commit->signature.get(), "", 1));
 
   git_commit_free(commit_obj);
 }
