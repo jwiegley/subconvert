@@ -51,13 +51,17 @@ namespace {
       if (linebuf[0] == '#')
         continue;
 
-      if (linebuf[0])
+      if (starts_with(linebuf, "\tpath = "))
+        entries.push_back(string(linebuf, 8));
+      else if (linebuf[0])
         entries.push_back(string(linebuf));
     }
   }
 
   bool is_ignored_file(const fs::path& pathname, const vector<string>& entries) {
     for (const string& entry : entries) {
+      // jww (2012-04-23): Need to handle ignoring of /*.c differently
+      // from just *.c.
       if (fnmatch(entry.c_str(), pathname.string().c_str(),
                   FNM_PATHNAME | FNM_PERIOD) == 0)
         return true;
@@ -144,6 +148,8 @@ int main(int argc, char *argv[])
   time_t         repo_ignore_mtime(0);
   vector<string> exclude_ignore_list;
   time_t         exclude_ignore_mtime(0);
+  vector<string> gitmodules_ignore_list;
+  time_t         gitmodules_ignore_mtime(0);
 
   time_t latest_write_time(0);
 
@@ -163,6 +169,8 @@ int main(int argc, char *argv[])
 
     UPD_IGN_LIST("~/.gitignore", global_ignore_list, global_ignore_mtime);
     UPD_IGN_LIST(".gitignore", repo_ignore_list, repo_ignore_mtime);
+    UPD_IGN_LIST(".gitmodules", gitmodules_ignore_list,
+                 gitmodules_ignore_mtime);
     UPD_IGN_LIST(".git/info/exclude", exclude_ignore_list,
                  exclude_ignore_mtime);
 
@@ -173,11 +181,13 @@ int main(int argc, char *argv[])
       if (! fs::is_regular_file(pathname))
         continue;
 
-      if (*pathname.begin() == ".git")
+      if (*pathname.begin() == ".git" ||
+          contains(pathname.string(), "/.git/"))
         continue;
 
       if (is_ignored_file(pathname, global_ignore_list) ||
           is_ignored_file(pathname, repo_ignore_list) ||
+          is_ignored_file(pathname, gitmodules_ignore_list) ||
           is_ignored_file(pathname, exclude_ignore_list)) {
         status.debug(string("Ignoring ") + pathname.string());
         continue;
@@ -227,7 +237,7 @@ int main(int argc, char *argv[])
       buf << "Sleeping for " << interval << " second(s)...";
       status.debug(buf.str());
     }
-    sleep(interval);
+    sleep(static_cast<unsigned int>(interval));
   }
 
   // jww (2012-04-23): There should be a safe way to quit.  Just send
