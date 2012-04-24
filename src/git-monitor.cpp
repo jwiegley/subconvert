@@ -63,6 +63,21 @@ namespace {
     }
     return false;
   }
+
+  string head_ref(Git::Repository& repo) {
+    git_reference * head;
+    Git::git_check(git_reference_lookup(&head, repo, "HEAD"));
+
+    string target(git_reference_target(head));
+    git_reference_free(head);
+
+    if (starts_with(target, "refs/heads"))
+      target = string("refs/snapshots/") + string(target, 11);
+    else
+      target = string("refs/snapshots/") + target;
+
+    return target;
+  }
 }
 
 int main(int argc, char *argv[])
@@ -102,19 +117,10 @@ int main(int argc, char *argv[])
   StatusDisplay   status(cerr, opts);
   Git::Repository repo(args.empty() ? "." : args[0].c_str(), status);
 
-  git_reference * head;
-  Git::git_check(git_reference_lookup(&head, repo, "HEAD"));
-
-  string target(git_reference_target(head));
-  if (starts_with(target, "refs/heads"))
-    target = string("refs/snapshots/") + string(target, 11);
-  else
-    target = string("refs/snapshots/") + target;
-
-  Git::Branch     snapshots(&repo, target);
-  Git::CommitPtr  commit(new Git::Commit(&repo, nullptr));
-
-  git_reference_free(head);
+ restart:
+  string         target(head_ref(repo));
+  Git::Branch    snapshots(&repo, target);
+  Git::CommitPtr commit(new Git::Commit(&repo, nullptr));
 
   vector<string> refs;
   refs.push_back(target);
@@ -143,6 +149,13 @@ int main(int argc, char *argv[])
   time_t latest_write_time(0);
 
   while (true) {
+    string curr_target(head_ref(repo));
+    if (target != curr_target) {
+      status.info(string("Detecting switching HEAD from ") + target +
+                  " to " + curr_target);
+      goto restart;
+    }
+
     time_t previous_write_time(latest_write_time);
     size_t updated = 0;
 
@@ -160,7 +173,7 @@ int main(int argc, char *argv[])
 
     string last_ignored;
 
-    for (fs::recursive_directory_iterator end, entry("./"); 
+    for (fs::recursive_directory_iterator end, entry("./");
          entry != end;
          ++entry) {
       const fs::path& pathname(string((*entry).path().string(), 2));
