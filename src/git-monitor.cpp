@@ -38,37 +38,6 @@
 using namespace std;
 using namespace boost;
 namespace fs = filesystem;
-  
-namespace {
-  void read_ignore_file(const fs::path& pathname, vector<string>& entries) {
-    static const int MAX_LINE = 1024;
-    char linebuf[MAX_LINE + 1];
-
-    filesystem::ifstream in(pathname);
-
-    while (in.good() && ! in.eof()) {
-      in.getline(linebuf, MAX_LINE);
-      if (linebuf[0] == '#')
-        continue;
-
-      if (starts_with(linebuf, "\tpath = "))
-        entries.push_back(string(linebuf, 8));
-      else if (linebuf[0])
-        entries.push_back(string(linebuf));
-    }
-  }
-
-  bool is_ignored_file(const fs::path& pathname, const vector<string>& entries) {
-    for (const string& entry : entries) {
-      // jww (2012-04-23): Need to handle ignoring of /*.c differently
-      // from just *.c.
-      if (fnmatch(entry.c_str(), pathname.string().c_str(),
-                  FNM_PATHNAME | FNM_PERIOD) == 0)
-        return true;
-    }
-    return false;
-  }
-}
 
 int main(int argc, char *argv[])
 {
@@ -142,37 +111,11 @@ int main(int argc, char *argv[])
     }
   }
 
-  vector<string> global_ignore_list;
-  time_t         global_ignore_mtime(0);
-  vector<string> repo_ignore_list;
-  time_t         repo_ignore_mtime(0);
-  vector<string> exclude_ignore_list;
-  time_t         exclude_ignore_mtime(0);
-  vector<string> gitmodules_ignore_list;
-  time_t         gitmodules_ignore_mtime(0);
-
   time_t latest_write_time(0);
 
   while (true) {
     time_t      previous_write_time(latest_write_time);
     size_t updated = 0;
-
-#define UPD_IGN_LIST(pathvar, listvar, timevar)                 \
-    if (fs::is_regular_file(pathvar)) {                         \
-      time_t timevar ## now(fs::last_write_time(pathvar));      \
-      if (timevar ## now != timevar) {                          \
-        (listvar).clear();                                      \
-        read_ignore_file((pathvar), (listvar));                 \
-        timevar = timevar ## now;                               \
-      }                                                         \
-    }
-
-    UPD_IGN_LIST("~/.gitignore", global_ignore_list, global_ignore_mtime);
-    UPD_IGN_LIST(".gitignore", repo_ignore_list, repo_ignore_mtime);
-    UPD_IGN_LIST(".gitmodules", gitmodules_ignore_list,
-                 gitmodules_ignore_mtime);
-    UPD_IGN_LIST(".git/info/exclude", exclude_ignore_list,
-                 exclude_ignore_mtime);
 
     for (fs::recursive_directory_iterator end, entry("./"); 
          entry != end;
@@ -181,27 +124,38 @@ int main(int argc, char *argv[])
       if (! fs::is_regular_file(pathname))
         continue;
 
-      if (*pathname.begin() == ".git" ||
-          contains(pathname.string(), "/.git/"))
+      const string& path_str(pathname.string());
+
+      if (*pathname.begin() == ".git" || contains(path_str, "/.git/"))
         continue;
 
-      if (is_ignored_file(pathname, global_ignore_list) ||
-          is_ignored_file(pathname, repo_ignore_list) ||
-          is_ignored_file(pathname, gitmodules_ignore_list) ||
-          is_ignored_file(pathname, exclude_ignore_list)) {
-        status.debug(string("Ignoring ") + pathname.string());
+      vector<fs::path> paths;
+      paths.push_back(pathname);
+      for (fs::path dirname(pathname);
+           ! dirname.empty();
+           dirname = dirname.parent_path())
+        paths.push_back(dirname);
+
+      int ignored = 0;
+      for (const fs::path& subpath : paths) {
+        Git::git_check
+          (git_status_should_ignore(repo, subpath.string().c_str(), &ignored));
+        if (ignored)
+          break;
+      }
+      if (ignored) {
+        status.debug(string("Ignoring ") + path_str);
         continue;
       }
 
-      status.debug(string("Considering regular file ") +
-                   pathname.string());
+      status.debug(string("Considering regular file ") + path_str);
 
       time_t when = fs::last_write_time(pathname);
       if (when > previous_write_time) {
-        status.info(string("Updating snapshot for ") + pathname.string());
+        status.info(string("Updating snapshot for ") + path_str);
 
         git_oid blob_oid;
-        git_blob_create_fromfile(&blob_oid, repo, pathname.string().c_str());
+        git_blob_create_fromfile(&blob_oid, repo, path_str.c_str());
         Git::BlobPtr blob
           (new Git::Blob(&repo, &blob_oid, pathname.filename().string(),
                          0100000 + ((*entry).status().permissions() &
