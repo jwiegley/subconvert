@@ -33,44 +33,138 @@
 #include "converter.h"
 #include "branches.h"
 
+#include <fnmatch.h>
+
+using namespace std;
+using namespace boost;
+namespace fs = filesystem;
+  
+namespace {
+  void read_ignore_file(const fs::path& pathname, vector<string>& entries) {
+    static const int MAX_LINE = 1024;
+    char linebuf[MAX_LINE + 1];
+
+    filesystem::ifstream in(pathname);
+
+    while (in.good() && ! in.eof()) {
+      in.getline(linebuf, MAX_LINE);
+      if (linebuf[0] == '#')
+        continue;
+
+      if (linebuf[0])
+        entries.push_back(string(linebuf));
+    }
+  }
+
+  bool is_ignored_file(const fs::path& pathname, const vector<string>& entries) {
+    for (const string& entry : entries) {
+      if (fnmatch(entry.c_str(), pathname.string().c_str(),
+                  FNM_PATHNAME | FNM_PERIOD) == 0)
+        return true;
+    }
+    return false;
+  }
+}
+
 int main(int argc, char *argv[])
 {
-  using namespace std;
-  using namespace boost;
-  namespace fs = filesystem;
-  
   ios::sync_with_stdio(false);
 
+  size_t interval = 60;
+
   Options opts;
-  opts.debug = true;
-  opts.verbose = true;
+  vector<string> args;
+
+  for (int i = 1; i < argc; ++i) {
+    if (argv[i][0] == '-') {
+      if (argv[i][1] == '-') {
+        if (strcmp(&argv[i][2], "verbose") == 0)
+          opts.verbose = true;
+        else if (strcmp(&argv[i][2], "quiet") == 0)
+          opts.quiet = true;
+        else if (strcmp(&argv[i][2], "debug") == 0)
+          opts.debug = 1;
+        else if (strcmp(&argv[i][2], "interval") == 0)
+          interval = lexical_cast<size_t>(argv[++i]);
+      }
+      else if (strcmp(&argv[i][1], "v") == 0)
+        opts.verbose = true;
+      else if (strcmp(&argv[i][1], "q") == 0)
+        opts.quiet = true;
+      else if (strcmp(&argv[i][1], "d") == 0)
+        opts.debug = 1;
+      else if (strcmp(&argv[i][1], "i") == 0)
+        interval = lexical_cast<size_t>(argv[++i]);
+    } else {
+      args.push_back(argv[i]);
+    }
+  }
 
   StatusDisplay   status(cerr, opts);
-  Git::Repository repo(".", status);
-  Git::Branch     snapshots(&repo, "snapshots");
+  Git::Repository repo(args.empty() ? "." : args[0].c_str(), status);
+
+  git_reference * head;
+  Git::git_check(git_reference_lookup(&head, repo, "HEAD"));
+
+  string target(git_reference_target(head));
+  if (starts_with(target, "refs/heads"))
+    target = string("refs/snapshots/") + string(target, 11);
+  else
+    target = string("refs/snapshots/") + target;
+
+  Git::Branch     snapshots(&repo, target);
   Git::CommitPtr  commit(new Git::Commit(&repo, nullptr));
 
+  git_reference_free(head);
+
   vector<string> refs;
+  refs.push_back(target);
   refs.push_back("HEAD");
-  refs.push_back("refs/heads/snapshots");
 
   for (auto refname : refs) {
     git_reference * ref;
     if (GIT_SUCCESS == git_reference_lookup(&ref, repo, refname.c_str())) {
-      if (const git_oid * oid = git_reference_oid(ref))
+      git_reference * resolved_ref;
+      Git::git_check(git_reference_resolve(&resolved_ref, ref));
+
+      if (const git_oid * oid = git_reference_oid(resolved_ref))
         commit->parent = new Git::Commit(&repo, oid);
       else
         commit->new_branch = true;
+
+      git_reference_free(resolved_ref);
       git_reference_free(ref);
       break;
     }
   }
 
+  vector<string> global_ignore_list;
+  time_t         global_ignore_mtime(0);
+  vector<string> repo_ignore_list;
+  time_t         repo_ignore_mtime(0);
+  vector<string> exclude_ignore_list;
+  time_t         exclude_ignore_mtime(0);
+
   time_t latest_write_time(0);
 
   while (true) {
     time_t      previous_write_time(latest_write_time);
-    std::size_t updated = 0;
+    size_t updated = 0;
+
+#define UPD_IGN_LIST(pathvar, listvar, timevar)                 \
+    if (fs::is_regular_file(pathvar)) {                         \
+      time_t timevar ## now(fs::last_write_time(pathvar));      \
+      if (timevar ## now != timevar) {                          \
+        (listvar).clear();                                      \
+        read_ignore_file((pathvar), (listvar));                 \
+        timevar = timevar ## now;                               \
+      }                                                         \
+    }
+
+    UPD_IGN_LIST("~/.gitignore", global_ignore_list, global_ignore_mtime);
+    UPD_IGN_LIST(".gitignore", repo_ignore_list, repo_ignore_mtime);
+    UPD_IGN_LIST(".git/info/exclude", exclude_ignore_list,
+                 exclude_ignore_mtime);
 
     for (fs::recursive_directory_iterator end, entry("./"); 
          entry != end;
@@ -79,22 +173,27 @@ int main(int argc, char *argv[])
       if (! fs::is_regular_file(pathname))
         continue;
 
-      // jww (2012-04-23): Need to ignore the files referenced by
-      // .gitignore, .git/info/exclude, and the global gitignore rules
       if (*pathname.begin() == ".git")
         continue;
 
-      status.debug(std::string("Considering regular file ") +
+      if (is_ignored_file(pathname, global_ignore_list) ||
+          is_ignored_file(pathname, repo_ignore_list) ||
+          is_ignored_file(pathname, exclude_ignore_list)) {
+        status.debug(string("Ignoring ") + pathname.string());
+        continue;
+      }
+
+      status.debug(string("Considering regular file ") +
                    pathname.string());
 
       time_t when = fs::last_write_time(pathname);
       if (when > previous_write_time) {
-        status.info(std::string("Updating snapshot for ") + pathname.string());
+        status.info(string("Updating snapshot for ") + pathname.string());
 
         git_oid blob_oid;
         git_blob_create_fromfile(&blob_oid, repo, pathname.string().c_str());
         Git::BlobPtr blob
-          (new Git::Blob(&repo, &blob_oid, pathname.stem().string(),
+          (new Git::Blob(&repo, &blob_oid, pathname.filename().string(),
                          0100000 + ((*entry).status().permissions() &
                                     fs::owner_exe ? 0755 : 0644)));
 
@@ -116,17 +215,22 @@ int main(int argc, char *argv[])
       commit->set_author("git-monitor", "git-monitor@localhost", latest_write_time);
       commit->write();            // create the commit object and its trees
 
-      snapshots.update(commit);   // update the snapshots branch
+      snapshots.update(commit, target); // update the snapshots ref
 
       repo.write_branches();      // write the updated refs to disk
     } else {
       status.debug("No changes noticed...");
     }
 
-    status.debug("Sleeping for 1 second(s)...");
-    sleep(1);
+    if (status.debug_mode()) {
+      ostringstream buf;
+      buf << "Sleeping for " << interval << " second(s)...";
+      status.debug(buf.str());
+    }
+    sleep(interval);
   }
 
-  // jww (2012-04-23): There should be a safe way to quit
+  // jww (2012-04-23): There should be a safe way to quit.  Just send
+  // SIGINT or SIGTERM for now.
   return 0;
 }

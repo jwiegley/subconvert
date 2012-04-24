@@ -449,7 +449,7 @@ namespace Git
     }
 
     CommitPtr get_commit(BranchPtr from_branch = nullptr);
-    void      update(CommitPtr ptr = nullptr);
+    void      update(CommitPtr ptr = nullptr, std::string refname = "");
 
     friend inline void intrusive_ptr_add_ref(Branch * obj) {
       obj->acquire();

@@ -453,7 +453,7 @@ CommitPtr Branch::get_commit(BranchPtr from_branch)
  * changes may have been made), or to a whole new commit, passed in
  * `ptr'.
  */
-void Branch::update(CommitPtr ptr)
+void Branch::update(CommitPtr ptr, std::string refname)
 {
   if (ptr)
     commit = ptr;
@@ -462,9 +462,11 @@ void Branch::update(CommitPtr ptr)
   assert(commit);
   assert(commit->is_written());
 
-  git_check(git_reference_create_oid(&git_ref, *repository,
-                                     (std::string("refs/heads/") + name).c_str(),
-                                     commit->get_oid(), 1));
+  git_check(git_reference_create_oid
+            (&git_ref, *repository,
+             refname.empty() ?
+             (std::string("refs/heads/") + name).c_str() : refname.c_str(),
+             commit->get_oid(), 1));
 }
 
 BlobPtr Repository::create_blob(const std::string& blob_name, const char * data,
