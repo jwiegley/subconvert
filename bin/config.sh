@@ -1,12 +1,12 @@
 #!/bin/sh
 
-INCLUDES="-isystem /usr/local/include"
-INCLUDES="$INCLUDES -isystem /opt/local/include"
-INCLUDES="$INCLUDES -isystem /usr/include"
-
+INCLUDES="-nostdlibinc"
+INCLUDES="$INCLUDES -isystem /usr/local/include"
 if [ -d /usr/local/include/c++/v1 ]; then
     INCLUDES="$INCLUDES -isystem /usr/local/include/c++/v1"
 fi
+INCLUDES="$INCLUDES -isystem /opt/local/include"
+INCLUDES="$INCLUDES -isystem /usr/include"
 
 if [ -f /usr/local/lib/libc++.dylib ]; then
     ./configure                                                         \

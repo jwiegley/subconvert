@@ -130,6 +130,7 @@ bool Tree::do_update(filesystem::path::iterator segment,
   assert(check_size(*repository, *this));
 
   std::string entry_name = (*segment).string();
+  assert(! entry_name.empty());
 
   entries_map::iterator i = entries.find(entry_name);
   if (++segment == end) {
@@ -280,8 +281,18 @@ void Tree::write()
       if (! obj->is_written())
         obj->write();
 
-      git_check(git_treebuilder_insert(nullptr, builder, obj->name.c_str(), *obj,
-                                       obj->attributes));
+      try {
+        git_check(git_treebuilder_insert(nullptr, builder, obj->name.c_str(),
+                                         *obj, obj->attributes));
+      }
+      catch (std::logic_error&) {
+        std::cerr << "Entries map contains " << entries.size()
+                  << " elements" << std::endl;
+        std::cerr << "Failed to insert '" << obj->name
+                  << "' for tree '" << name << "':" << std::endl;
+        dump_tree(std::cerr);
+        throw;
+      }
     }
 
     assert(check_size(*repository, *this));

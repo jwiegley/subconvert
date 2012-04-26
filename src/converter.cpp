@@ -210,13 +210,15 @@ void ConvertRepository::update_object(Git::Repository *       repo,
   // First, add the change to the flat-history branch (which will become
   // a tag when the process is completed).
 
-  // from_branch is never needed here, since 'obj' has already been
-  // copied from the source location.
-  Git::CommitPtr history_commit(history_branch->get_commit());
-  if (obj)
-    history_commit->update(pathname, obj);
-  else
-    history_commit->remove(pathname);
+  if (! related_branch) {
+    // from_branch is never needed here, since 'obj' has already been
+    // copied from the source location.
+    Git::CommitPtr history_commit(history_branch->get_commit());
+    if (obj)
+      history_commit->update(pathname, obj);
+    else
+      history_commit->remove(pathname);
+  }
 
   //assert(history_commit->is_modified());
 

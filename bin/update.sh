@@ -47,24 +47,26 @@ if [[ -d $RAMDISK/cpp ]]; then
     cd $RAMDISK/cpp
 
     git init
-    $MIGRATE/subconvert -q                                              \
-        -A $MIGRATE/doc/authors.txt                                     \
-        -B $MIGRATE/doc/branches.txt                                    \
-        convert $BOOST/boost.svnrepo.dump
-    git symbolic-ref HEAD refs/heads/trunk
+    if $MIGRATE/subconvert -q                                           \
+           -A $MIGRATE/doc/authors.txt                                  \
+           -B $MIGRATE/doc/branches.txt                                 \
+           convert $BOOST/boost.svnrepo.dump
+        git symbolic-ref HEAD refs/heads/trunk
+        git prune
+        sleep 5
 
-    git remote add origin git@github.com:ryppl/boost-history.git
-    git push -f --all origin
-    git push -f --mirror origin
-    git push -f --tags origin
+        git remote add origin git@github.com:ryppl/boost-history.git
+        git push -f --all origin
+        git push -f --mirror origin
+        git push -f --tags origin
 
-    git gc
-    sleep 30
-    rsync -av --delete .git/ $BOOST/boost-history.git/
+        sleep 5
+        rsync -av --delete .git/ $BOOST/boost-history.git/
 
-    cd $BOOST
-    sudo umount $RAMDISK
-    rm -fr $RAMDISK
+        cd $BOOST
+        sudo umount $RAMDISK
+        rm -fr $RAMDISK
+    fi
 fi
 
 #$MIGRATE/bin/modules.sh update

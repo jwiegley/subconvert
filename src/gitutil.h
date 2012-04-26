@@ -277,11 +277,24 @@ namespace Git
     }
 
     void update(const filesystem::path& pathname, ObjectPtr obj) {
-      do_update(pathname.begin(), pathname.end(), obj);
+      if (pathname.empty()) {
+        assert(obj->is_tree());
+        TreePtr subtree = dynamic_cast<Tree *>(obj.get());
+        for (auto entry : subtree->entries)
+          update(entry.first, entry.second);
+      } else {
+        do_update(pathname.begin(), pathname.end(), obj);
+      }
     }
 
     void remove(const filesystem::path& pathname) {
-      do_remove(pathname.begin(), pathname.end());
+      if (pathname.empty()) {
+        entries.clear();
+        modified = true;
+        written = false;
+      } else {
+        do_remove(pathname.begin(), pathname.end());
+      }
     }
 
     virtual void write();
