@@ -37,7 +37,6 @@
 #include "gitutil.h"
 #include "status.h"
 #include "authors.h"
-#include "submodule.h"
 
 struct ConvertRepository
 {
@@ -46,11 +45,6 @@ struct ConvertRepository
 
   typedef std::pair<int, int>        copy_from_value;
   typedef std::list<copy_from_value> copy_from_list;
-
-  typedef std::vector<Submodule *>          submodules_list_t;
-  typedef std::map<filesystem::path,
-                   std::pair<filesystem::path,
-                             Submodule *> > submodules_map_t;
 
   SvnDump::File::Node *     node;
   StatusDisplay&            status;
@@ -62,8 +56,6 @@ struct ConvertRepository
   copy_from_list            copy_from;
   Git::Repository *         repository; // let it leak!
   Git::BranchPtr            history_branch;
-  submodules_list_t         submodules_list;
-  submodules_map_t          submodules_map;
   std::string               commit_log;
   shared_ptr<git_signature> signature;
 
@@ -80,10 +72,6 @@ struct ConvertRepository
 #ifdef ASSERTS
     checked_delete(repository);
 #endif
-    for (submodules_list_t::iterator i = submodules_list.begin();
-         i != submodules_list.end();
-         ++i)
-      checked_delete(*i);
   }
 
   void         free_past_trees();
@@ -92,38 +80,29 @@ struct ConvertRepository
   void establish_commit_info();
   void set_commit_info(Git::CommitPtr commit);
 
-  std::pair<filesystem::path, Submodule *>
-  find_submodule(const filesystem::path& pathname);
-
   Git::BranchPtr find_branch(Git::Repository *       repo,
-                             const filesystem::path& pathname,
-                             Git::BranchPtr          related_branch = nullptr);
+                             const filesystem::path& pathname);
 
   void update_object(Git::Repository *       repo,
                      const filesystem::path& pathname,
                      Git::ObjectPtr          obj            = nullptr,
                      Git::BranchPtr          from_branch    = nullptr,
-                     Git::BranchPtr          related_branch = nullptr,
                      std::string             debug_text     = "");
 
   void process_change(Git::Repository *       repo,
-                      const filesystem::path& pathname,
-                      Git::BranchPtr          related_branch = nullptr);
+                      const filesystem::path& pathname);
 
   std::string describe_change(SvnDump::File::Node::Kind   kind,
                               SvnDump::File::Node::Action action);
 
   bool add_file(Git::Repository *       repo,
-                const filesystem::path& pathname,
-                Git::BranchPtr          related_branch = nullptr);
+                const filesystem::path& pathname);
 
   bool add_directory(Git::Repository *       repo,
-                     const filesystem::path& pathname,
-                     Git::BranchPtr          related_branch = nullptr);
+                     const filesystem::path& pathname);
 
   bool delete_item(Git::Repository *       repo,
-                   const filesystem::path& pathname,
-                   Git::BranchPtr          related_branch = nullptr);
+                   const filesystem::path& pathname);
 
   int  prescan(SvnDump::File::Node& node);
   void operator()(SvnDump::File::Node& node);

@@ -30,8 +30,7 @@ git_monitor_CXXFLAGS += -Weverything -Wno-padded -Wno-weak-vtables		\
 		        -fno-limit-debug-info
 
 subconvert_SOURCES = src/authors.cpp src/branches.cpp src/converter.cpp	\
-		     src/gitutil.cpp src/main.cpp src/submodule.cpp	\
-		     src/svndump.cpp
+		     src/gitutil.cpp src/main.cpp src/svndump.cpp
 
 git_monitor_SOURCES  = src/gitutil.cpp src/git-monitor.cpp
 
@@ -40,7 +39,6 @@ pkginclude_HEADERS = src/svndump.h		\
 		     src/authors.h		\
 		     src/branches.h		\
 		     src/converter.h		\
-		     src/submodule.h		\
 		     src/status.h
 
 nodist_subconvert_SOURCES = system.hpp

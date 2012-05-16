@@ -275,10 +275,6 @@ int main(int argc, char *argv[])
           filesystem::is_regular_file(branches_file))
         errors += Branches::load_branches(branches_file, converter, status);
 
-      if (! modules_file.empty() &&
-          filesystem::is_regular_file(modules_file))
-        errors += Submodule::load_modules(modules_file, converter);
-
       // Validate this information as much as possible before possibly
       // wasting the user's time with useless work.
 

@@ -154,11 +154,6 @@ void ConvertRepository::establish_commit_info()
         << '\n';
 
   buf << "SVN-Revision: " << rev;
-#if 0
-  // jww (2012-04-18): We also need a "super repository" that contains a
-  // .gitmodules file which is updated every time a submodule is updated.
-  buf << "\nHistory-Commit: " << rev;
-#endif
 
   commit_log = buf.str();
 }
@@ -169,63 +164,33 @@ void ConvertRepository::set_commit_info(Git::CommitPtr commit)
   commit->set_message(commit_log);
 }
 
-std::pair<filesystem::path, Submodule *>
-ConvertRepository::find_submodule(const filesystem::path& pathname)
-{
-  submodules_map_t::iterator i = submodules_map.find(pathname);
-  if (i != submodules_map.end())
-    return (*i).second;
-
-  for (filesystem::path dirname(pathname);
-       ! dirname.empty();
-       dirname = dirname.parent_path()) {
-    submodules_map_t::iterator j = submodules_map.find(dirname);
-    if (j != submodules_map.end()) {
-      std::string suffix(pathname.string(), dirname.string().length() + 1);
-      return std::make_pair((*j).second.first / filesystem::path(suffix),
-                            (*j).second.second);
-    }
-  }
-
-  return std::make_pair(filesystem::path(), nullptr);
-}
-
 Git::BranchPtr
 ConvertRepository::find_branch(Git::Repository *       repo,
-                               const filesystem::path& pathname,
-                               Git::BranchPtr          related_branch)
+                               const filesystem::path& pathname)
 {
-  return (related_branch ?
-          repo->find_branch_by_name(related_branch->name) :
-          repo->find_branch_by_path(pathname));
+  return repo->find_branch_by_path(pathname);
 }
 
 void ConvertRepository::update_object(Git::Repository *       repo,
                                       const filesystem::path& pathname,
                                       Git::ObjectPtr          obj,
                                       Git::BranchPtr          from_branch,
-                                      Git::BranchPtr          related_branch,
                                       std::string             debug_text)
 {
   // First, add the change to the flat-history branch (which will become
   // a tag when the process is completed).
-
-  if (! related_branch) {
-    // from_branch is never needed here, since 'obj' has already been
-    // copied from the source location.
-    Git::CommitPtr history_commit(history_branch->get_commit());
-    if (obj)
-      history_commit->update(pathname, obj);
-    else
-      history_commit->remove(pathname);
-  }
+  Git::CommitPtr history_commit(history_branch->get_commit());
+  if (obj)
+    history_commit->update(pathname, obj);
+  else
+    history_commit->remove(pathname);
 
   //assert(history_commit->is_modified());
 
   // Second, add the change to the related branch, according to
   // branches.txt
 
-  Git::BranchPtr branch(find_branch(repo, pathname, related_branch));
+  Git::BranchPtr branch(find_branch(repo, pathname));
   Git::CommitPtr branch_commit(branch->get_commit(from_branch));
 
   status.info(debug_text + " <" + branch->name + ">" +
@@ -233,37 +198,14 @@ void ConvertRepository::update_object(Git::Repository *       repo,
                std::string(" {") + repo->repo_name + "}"));
 
   std::string::size_type path_len(pathname.string().length());
-  std::string::size_type subpath_len(related_branch ? 0 :
-                                     branch->prefix.string().length());
-  filesystem::path       subpath(related_branch ? pathname :
-                                 (path_len == subpath_len ?
-                                  pathname : std::string(pathname.string(),
-                                                         subpath_len + 1)));
+  std::string::size_type subpath_len(branch->prefix.string().length());
+  filesystem::path       subpath(path_len == subpath_len ?
+                                 pathname : std::string(pathname.string(),
+                                                        subpath_len + 1));
   if (obj)
     branch_commit->update(subpath, obj);
   else
     branch_commit->remove(subpath);
-
-  if (! submodules_map.empty() && ! related_branch) {
-    // Add the change to any related submodule, according to
-    // manifest.txt.  We actually add this to a branch in the current
-    // repository for efficiency's sake, allowing it to be sifted out
-    // using git-filter-branch afterward.
-    Submodule *      submodule;
-    filesystem::path submodule_path;
-
-#if defined(_LIBCPP_VERSION)
-    std::tie(submodule_path, submodule) = find_submodule(subpath);
-#else
-    std::tr1::tie(submodule_path, submodule) = find_submodule(subpath);
-#endif
-
-    if (submodule) {
-      std::cerr << "  ==> matched to submodule " << submodule->pathname
-                << " -> " << submodule_path << std::endl;
-      process_change(submodule->repository, submodule_path, branch);
-    }
-  }
 }
 
 std::string
@@ -290,8 +232,7 @@ ConvertRepository::describe_change(SvnDump::File::Node::Kind   kind,
 }
 
 bool ConvertRepository::add_file(Git::Repository * repo,
-                                 const filesystem::path& pathname,
-                                 Git::BranchPtr related_branch)
+                                 const filesystem::path& pathname)
 {
   std::string debug_text;
   if (opts.verbose || opts.debug)
@@ -316,12 +257,10 @@ bool ConvertRepository::add_file(Git::Repository * repo,
 
     assert(obj);
     assert(obj->is_blob());
-    obj = obj->copy_to_name(pathname.filename().string(),
-                            related_branch != nullptr);
+    obj = obj->copy_to_name(pathname.filename().string());
 
     update_object(repo, pathname, obj,
-                  find_branch(repo, from_path, related_branch),
-                  related_branch, debug_text);
+                  find_branch(repo, from_path), debug_text);
     return true;
   }
   else if (! (node->get_action() == SvnDump::File::Node::ACTION_CHANGE &&
@@ -330,15 +269,14 @@ bool ConvertRepository::add_file(Git::Repository * repo,
                             node->has_text() ? node->get_text() : "",
                             node->has_text() ? node->get_text_length() : 0);
 
-    update_object(repo, pathname, obj, nullptr, related_branch, debug_text);
+    update_object(repo, pathname, obj, nullptr, debug_text);
     return true;
   }
   return false;
 }
 
 bool ConvertRepository::add_directory(Git::Repository * repo,
-                                      const filesystem::path& pathname,
-                                      Git::BranchPtr related_branch)
+                                      const filesystem::path& pathname)
 {
   assert(node->has_copy_from());
 
@@ -357,20 +295,17 @@ bool ConvertRepository::add_directory(Git::Repository * repo,
   if (Git::ObjectPtr obj = get_past_tree()->lookup(from_path)) {
     assert(obj->is_tree());
     update_object(repo, pathname,
-                  obj->copy_to_name(pathname.filename().string(),
-                                    related_branch != nullptr),
-                  find_branch(repo, from_path, related_branch),
-                  related_branch, debug_text);
+                  obj->copy_to_name(pathname.filename().string()),
+                  find_branch(repo, from_path), debug_text);
     return true;
   }
   return false;
 }
 
 bool ConvertRepository::delete_item(Git::Repository * repo,
-                                    const filesystem::path& pathname,
-                                    Git::BranchPtr related_branch)
+                                    const filesystem::path& pathname)
 {
-  update_object(repo, pathname, nullptr, nullptr, related_branch,
+  update_object(repo, pathname, nullptr, nullptr,
                 std::string("?D: ") + pathname.string());
   return true;
 }
@@ -441,8 +376,7 @@ int ConvertRepository::prescan(SvnDump::File::Node& _node)
 }
 
 void ConvertRepository::process_change(Git::Repository * repo,
-                                       const filesystem::path& pathname,
-                                       Git::BranchPtr related_branch)
+                                       const filesystem::path& pathname)
 {
   SvnDump::File::Node::Kind   kind   = node->get_kind();
   SvnDump::File::Node::Action action = node->get_action();
@@ -451,15 +385,15 @@ void ConvertRepository::process_change(Git::Repository * repo,
   if (kind == SvnDump::File::Node::KIND_FILE &&
       (action == SvnDump::File::Node::ACTION_ADD ||
        action == SvnDump::File::Node::ACTION_CHANGE)) {
-    changed = add_file(repo, pathname, related_branch);
+    changed = add_file(repo, pathname);
   }
   else if (action == SvnDump::File::Node::ACTION_DELETE) {
-    changed = delete_item(repo, pathname, related_branch);
+    changed = delete_item(repo, pathname);
   }
   else if (node->has_copy_from() &&
            kind   == SvnDump::File::Node::KIND_DIR   &&
            action == SvnDump::File::Node::ACTION_ADD) {
-    changed = add_directory(repo, pathname, related_branch);
+    changed = add_directory(repo, pathname);
   }
 
   if (! changed)
@@ -497,16 +431,6 @@ void ConvertRepository::operator()(SvnDump::File::Node& _node)
         }
       }
 
-      for (submodule_list_t::iterator i = submodules_list.begin();
-           i != submodules_list.end();
-           ++i)
-        if ((*i)->repository->write(last_rev)) {
-          if (opts.collect && rev % opts.collect == 0) {
-            (*i)->repository->write_branches();
-            (*i)->repository->garbage_collect();
-          }
-        }
-
       free_past_trees();
 
       status.update(rev);
@@ -524,21 +448,8 @@ void ConvertRepository::finish()
   repository->write(last_rev);
   repository->write_branches();
 
-  for (submodule_list_t::iterator i = submodules_list.begin();
-       i != submodules_list.end();
-       ++i) {
-    (*i)->repository->write(last_rev);
-    (*i)->repository->write_branches();
-  }
-
-  if (opts.collect) {
+  if (opts.collect)
     repository->garbage_collect();
-
-    for (submodule_list_t::iterator i = submodules_list.begin();
-         i != submodules_list.end();
-         ++i)
-      (*i)->repository->garbage_collect();
-  }
 
   if (history_branch->commit) {
     repository->create_tag(history_branch->commit, history_branch->name);
