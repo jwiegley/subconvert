@@ -2,7 +2,7 @@
 
 set -o errexit
 
-TOP=/Volumes/Data/Mirrors/Boost
+TOP=$HOME/Mirrors/Boost
 
 BOOST_MODULARIZE=$TOP/boost-modularize
 BOOST_SVN=$TOP/boost-svn
@@ -19,4 +19,4 @@ if [[ $1 == "reset" ]]; then
 else
     (cd $BOOST_MODULARIZE && \
      python modularize.py --src=$BOOST_SVN --dst=$BOOST_GIT "$@")
-fi    
+fi

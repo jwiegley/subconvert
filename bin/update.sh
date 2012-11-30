@@ -9,10 +9,10 @@ EOF
 trap 'error ${LINENO}' ERR
 
 RAMDISK=/tmp/ramdisk
-BOOST=/Volumes/Data/Mirrors/Boost
-MIGRATE=$HOME/Contracts/BoostPro/Projects/boost-migrate
+BOOST=$HOME/Mirrors/Boost
+MIGRATE="$HOME/Contracts/BoostPro/Projects/boost-migrate"
 
-$MIGRATE/bin/modules.sh reset
+"$MIGRATE/bin/modules.sh" reset
 
 cd $BOOST
 
@@ -27,7 +27,8 @@ cd $BOOST
 (cd boost-modularize; git pull)
 
 svnsync --non-interactive sync file://$PWD/boost.svnrepo
-svnadmin dump -q boost.svnrepo > boost.svnrepo.dump
+#svnadmin dump -q boost.svnrepo > boost.svnrepo.dump
+#pxz -9ve boost.svnrepo.dump
 
 perl -i -pe "s%url =.*%url = file://$PWD/boost.svnrepo%;" boost-clone/.git/config
 (cd boost-clone; git svn fetch; git reset --hard trunk)
@@ -47,9 +48,9 @@ if [[ -d $RAMDISK/cpp ]]; then
     cd $RAMDISK/cpp
 
     git init
-    if $MIGRATE/subconvert -q                                           \
-           -A $MIGRATE/doc/authors.txt                                  \
-           -B $MIGRATE/doc/branches.txt                                 \
+    if "$MIGRATE/subconvert" -q                                           \
+           -A "$MIGRATE/doc/authors.txt"                                  \
+           -B "$MIGRATE/doc/branches.txt"                                 \
            convert $BOOST/boost.svnrepo.dump
         git symbolic-ref HEAD refs/heads/trunk
         git prune
@@ -69,8 +70,8 @@ if [[ -d $RAMDISK/cpp ]]; then
     fi
 fi
 
-#$MIGRATE/bin/modules.sh update
-#$MIGRATE/bin/modules.sh push
+#"$MIGRATE/bin/modules.sh" update
+#"$MIGRATE/bin/modules.sh" push
 
 cat <<EOF | mutt -s '[boost] Migration update succeeded' johnw@boostpro.com
 Boost migration update succeeded.
