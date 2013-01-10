@@ -43,7 +43,7 @@ namespace Git
 {
   inline void git_check(int result) {
     if (result != 0)
-      throw std::logic_error(git_strerror(result));
+      throw std::logic_error(giterr_last()->message);
   }
 
   inline std::string git_sha1(const git_oid * git_oid) {
