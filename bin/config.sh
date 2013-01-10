@@ -10,20 +10,13 @@ INCLUDES="$INCLUDES -isystem /opt/local/include"
 INCLUDES="$INCLUDES -isystem /usr/include"
 
 if [ -f /usr/local/lib/libc++.dylib ]; then
-    ./configure                                                         \
-        --prefix=/usr/local/stow/subconvert                             \
-        --with-boost-suffix=-clang-darwin-1_50                          \
-        CC=clang LD=clang++ CXX=clang++                                 \
-        CXXFLAGS="-O3 -std=c++11 -stdlib=libc++"               \
-        CPPFLAGS="-nostdlibinc $INCLUDES"                               \
-        LDFLAGS="-O3 -stdlib=libc++ -L/usr/local/lib -L/opt/local/lib /usr/local/lib/libc++.dylib"
-    #./configure                                                         \
-    #    --prefix=/usr/local/stow/subconvert                             \
-    #    --with-boost-suffix=-clang-darwin-1_50                          \
-    #    CC=clang LD=clang++ CXX=clang++                                 \
-    #    CXXFLAGS="-g -DASSERTS -std=c++11 -stdlib=libc++"               \
-    #    CPPFLAGS="-nostdlibinc $INCLUDES"                               \
-    #    LDFLAGS="-g -stdlib=libc++ -L/usr/local/lib -L/opt/local/lib /usr/local/lib/libc++.dylib"
+    ./configure                                         \
+        --prefix=/usr/local/stow/subconvert             \
+        --with-boost-suffix=-mt                         \
+        CC=clang LD=clang++ CXX=clang++                 \
+        CXXFLAGS="-O3 -std=c++11 -stdlib=libc++"        \
+        CPPFLAGS="-nostdlibinc $INCLUDES"               \
+        LDFLAGS="-O3 -stdlib=libc++ -L/usr/local/lib /usr/local/lib/libc++.dylib"
 else
     ./configure                                         \
         --enable-pch                                    \

@@ -27,13 +27,11 @@ cd $BOOST
 (cd boost-modularize; git pull)
 
 svnsync --non-interactive sync file://$PWD/boost.svnrepo
-#svnadmin dump -q boost.svnrepo > boost.svnrepo.dump
+svnadmin dump -q boost.svnrepo > boost.svnrepo.dump
 #pxz -9ve boost.svnrepo.dump
 
 perl -i -pe "s%url =.*%url = file://$PWD/boost.svnrepo%;" boost-clone/.git/config
 (cd boost-clone; git svn fetch; git reset --hard trunk)
-
-exit 0
 
 if [[ ! -d $RAMDISK ]]; then
     mkramdisk
@@ -51,7 +49,7 @@ if [[ -d $RAMDISK/cpp ]]; then
     if "$MIGRATE/subconvert" -q                                           \
            -A "$MIGRATE/doc/authors.txt"                                  \
            -B "$MIGRATE/doc/branches.txt"                                 \
-           convert $BOOST/boost.svnrepo.dump
+           convert $BOOST/boost.svnrepo.dump; then
         git symbolic-ref HEAD refs/heads/trunk
         git prune
         sleep 5

@@ -4,7 +4,7 @@ DISTCLEANFILES	= .timestamp
 
 ######################################################################
 
-bin_PROGRAMS	= subconvert git-monitor
+bin_PROGRAMS	= subconvert #git-monitor
 
 subconvert_CXXFLAGS = -std=c++11 -Wno-c++98-compat
 git_monitor_CXXFLAGS = -std=c++11 -Wno-c++98-compat
